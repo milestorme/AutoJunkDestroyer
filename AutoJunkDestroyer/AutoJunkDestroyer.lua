@@ -2,7 +2,7 @@
 -- Name: Auto Junk Destroyer
 -- Author: Milestorme
 -- Description: Automatically destroys junk items when bags are full
--- Version: 1.0.1
+-- Version: 1.0.2
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -10,6 +10,24 @@ frame:RegisterEvent("BAG_UPDATE")
 
 local popupShown = false
 local inBattleground = false
+local paused = false
+
+-- Slash command
+SLASH_AUTOJUNKDESTROYER1 = "/ajd"
+SlashCmdList["AUTOJUNKDESTROYER"] = function(msg)
+    msg = msg:lower()
+    if msg == "pause" then
+        paused = not paused
+        if paused then
+            print("AutoJunkDestroyer: |cffff0000Paused|r")
+        else
+            print("AutoJunkDestroyer: |cff00ff00Resumed|r")
+        end
+    else
+        print("AutoJunkDestroyer commands:")
+        print("/ajd pause - Toggle addon on/off")
+    end
+end
 
 -- Check if player is in a battleground
 local function IsInBattleground()
@@ -68,9 +86,9 @@ local function BagsAreFull()
     return true
 end
 
--- Show confirmation popup (one item only)
+-- Show confirmation popup
 local function ShowConfirmationPopup()
-    if popupShown or inBattleground then return end
+    if popupShown or inBattleground or paused then return end
 
     local junkItems = GetJunkItems()
     if #junkItems == 0 then return end
@@ -98,9 +116,11 @@ end
 
 -- Event handler
 frame:SetScript("OnEvent", function(self, event)
+    if paused then return end
+
     if event == "PLAYER_ENTERING_WORLD" then
         inBattleground = IsInBattleground()
-        print("AutoJunkDestroyer loaded!")
+        print("AutoJunkDestroyer loaded! (/ajd pause)")
         return
     end
 
@@ -110,11 +130,11 @@ frame:SetScript("OnEvent", function(self, event)
         return
     end
 
-    -- Just left a battleground → wait for Blizzard cleanup
+    -- Just left battleground → wait for cleanup
     if inBattleground then
         inBattleground = false
         C_Timer.After(1, function()
-            if BagsAreFull() and #GetJunkItems() > 0 then
+            if not paused and BagsAreFull() and #GetJunkItems() > 0 then
                 ShowConfirmationPopup()
             end
         end)
