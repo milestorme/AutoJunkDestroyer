@@ -1,0 +1,8 @@
+## Interface: 11508
+## Title: AutoJunkDestroyer
+## Author: Milestorme
+## Notes: Automatically destroys junk items when bags are full
+## Version: 1.0.0
+AutoJunkDestroyer.lua
+
+
