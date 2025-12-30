@@ -2,7 +2,7 @@
 ## Title: AutoJunkDestroyer
 ## Author: Milestorme
 ## Notes: Automatically destroys junk items when bags are full
-## Version: 1.0.0
+## Version: 1.0.1
 AutoJunkDestroyer.lua
 
 

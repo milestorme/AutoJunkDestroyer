@@ -2,13 +2,20 @@
 -- Name: Auto Junk Destroyer
 -- Author: Milestorme
 -- Description: Automatically destroys junk items when bags are full
--- Version: 1.0.0
+-- Version: 1.0.1
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("BAG_UPDATE")
 
 local popupShown = false
+local inBattleground = false
+
+-- Check if player is in a battleground
+local function IsInBattleground()
+    local inInstance, instanceType = IsInInstance()
+    return inInstance and instanceType == "pvp"
+end
 
 -- Get all grey (junk) items sorted by cheapest
 local function GetJunkItems()
@@ -21,7 +28,12 @@ local function GetJunkItems()
                 if info and info.hyperlink then
                     local _, _, rarity, _, _, _, _, _, _, price = GetItemInfo(info.itemID)
                     if rarity == 0 and price and price > 0 then
-                        table.insert(junkItems, {bag = bag, slot = slot, price = price, link = info.hyperlink})
+                        table.insert(junkItems, {
+                            bag = bag,
+                            slot = slot,
+                            price = price,
+                            link = info.hyperlink
+                        })
                     end
                 end
             end
@@ -34,15 +46,12 @@ end
 -- Delete the first (cheapest) junk item
 local function DeleteFirstJunkItem()
     local junkItems = GetJunkItems()
-    if #junkItems == 0 then
-        print("AutoJunkDestroyer: No junk items to delete.")
-        return
-    end
+    if #junkItems == 0 then return end
 
     local item = junkItems[1]
     C_Container.PickupContainerItem(item.bag, item.slot)
     DeleteCursorItem()
-    print("Destroyed junk:", item.link, "worth", item.price, "c")
+    print("AutoJunkDestroyer: Destroyed", item.link)
 end
 
 -- Check if bags are full
@@ -59,9 +68,9 @@ local function BagsAreFull()
     return true
 end
 
--- Show confirmation popup for one item
+-- Show confirmation popup (one item only)
 local function ShowConfirmationPopup()
-    if popupShown then return end
+    if popupShown or inBattleground then return end
 
     local junkItems = GetJunkItems()
     if #junkItems == 0 then return end
@@ -69,7 +78,7 @@ local function ShowConfirmationPopup()
     popupShown = true
 
     StaticPopupDialogs["AUTJUNK_CONFIRM"] = {
-        text = "Your bags are full! Delete the cheapest junk item?\n"..junkItems[1].link,
+        text = "Your bags are full!\nDelete the cheapest junk item?\n\n" .. junkItems[1].link,
         button1 = "Yes",
         button2 = "No",
         timeout = 0,
@@ -80,7 +89,6 @@ local function ShowConfirmationPopup()
             popupShown = false
         end,
         OnCancel = function()
-            print("AutoJunkDestroyer: Cancelled.")
             popupShown = false
         end,
     }
@@ -89,23 +97,32 @@ local function ShowConfirmationPopup()
 end
 
 -- Event handler
-frame:SetScript("OnEvent", function(self, event, ...)
+frame:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_ENTERING_WORLD" then
+        inBattleground = IsInBattleground()
         print("AutoJunkDestroyer loaded!")
+        return
     end
 
+    -- Never run inside battlegrounds
+    if IsInBattleground() then
+        inBattleground = true
+        return
+    end
+
+    -- Just left a battleground → wait for Blizzard cleanup
+    if inBattleground then
+        inBattleground = false
+        C_Timer.After(1, function()
+            if BagsAreFull() and #GetJunkItems() > 0 then
+                ShowConfirmationPopup()
+            end
+        end)
+        return
+    end
+
+    -- Normal behavior
     if BagsAreFull() and #GetJunkItems() > 0 then
         ShowConfirmationPopup()
     end
 end)
-
-
-
-
-
-
-
-
-
-
-
