@@ -1,8 +1,13 @@
 ## Interface: 11508
+## SavedVariables: AutoJunkDestroyerDB
 ## Title: AutoJunkDestroyer
 ## Author: Milestorme
-## Notes: Automatically destroys junk items when bags are full
-## Version: 1.0.3
+## Notes: Destroy junk items when bags are full easily
+## Version: 1.0.8
+Libs/AceDB-3.0/AceDB-3.0.lua
+Libs/AceConfig-3.0/AceConfig-3.0.lua
+Libs/AceConfigDialog-3.0/AceConfigDialog-3.0.lua
+Libs/AceDBOptions-3.0/AceDBOptions-3.0.lua
 Libs/LibStub/LibStub.lua
 Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
 Libs/LibDBIcon-1.0/LibDBIcon-1.0.lua

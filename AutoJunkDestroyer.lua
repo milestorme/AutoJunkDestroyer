@@ -3,7 +3,7 @@
 -- Author: Milestorme
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
--- Version: 1.0.3
+-- Version: 1.0.8
 
 local ADDON_NAME = ...
 local frame = CreateFrame("Frame")
@@ -18,12 +18,10 @@ local greyQueue = {}
 local deleting = false
 
 -- Delay after leaving battleground to avoid UI errors during zoning
-local BG_EXIT_DELAY = 1.0
+local BG_EXIT_DELAY = 1.5
 
 -- If we leave a BG while in combat, we defer enabling until combat ends.
 local pendingEnableAfterCombat = false
-
--- Prevent chat spam when leaving BG during combat
 local warnedWaitingForCombat = false
 
 -------------------------------------------------
@@ -61,28 +59,106 @@ local function GetGreyItems()
     return queue
 end
 
-local function BagsAreFull()
+-- Bag capacity tracking
+-- Show the delete button once bags reach this usage percentage (e.g. 0.90 = 90% full)
+local BAG_USAGE_THRESHOLD = 0.90
+
+local function GetBagUsage()
+    local totalSlots = 0
+    local freeSlots = 0
+
     for bag = 0, NUM_BAG_SLOTS do
-        local free = C_Container.GetContainerNumFreeSlots(bag)
-        if free and free > 0 then
-            return false
+        local slots = C_Container.GetContainerNumSlots(bag)
+        if slots and slots > 0 then
+            totalSlots = totalSlots + slots
+
+            local free = C_Container.GetContainerNumFreeSlots(bag)
+            if free and free > 0 then
+                freeSlots = freeSlots + free
+            end
         end
     end
-    return true
+
+    local usedSlots = totalSlots - freeSlots
+    local percentUsed = (totalSlots > 0) and (usedSlots / totalSlots) or 0
+
+    return usedSlots, freeSlots, totalSlots, percentUsed
+end
+
+local function BagsAtOrAboveThreshold()
+    local _, _, totalSlots, percentUsed = GetBagUsage()
+    if totalSlots <= 0 then return false end
+    return percentUsed >= BAG_USAGE_THRESHOLD
 end
 
 -------------------------------------------------
 -- Button
 -------------------------------------------------
+local EnsureSV
+local SavePopupButtonPosition
+local ApplyPopupButtonPosition
+local ResetPopupButtonPosition
+
 local button = CreateFrame("Button", "AutoJunkDestroyerButton", UIParent, "UIPanelButtonTemplate")
 button:SetSize(180, 30)
 button:SetPoint("CENTER")
 button:SetMovable(true)
 button:EnableMouse(true)
 button:RegisterForDrag("LeftButton")
-button:SetScript("OnDragStart", button.StartMoving)
-button:SetScript("OnDragStop", button.StopMovingOrSizing)
+button:SetScript("OnDragStart", function(self)
+    if paused or inBattleground or InCombat() then return end
+    self:StartMoving()
+end)
+button:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    SavePopupButtonPosition()
+end)
 button:Hide()
+
+-- Keep the popup on-screen
+button:SetClampedToScreen(true)
+
+-------------------------------------------------
+-- Popup Button Position Persistence (SavedVariables)
+-- Saved to AutoJunkDestroyerDB.popupButtonPos so it will appear on disk.
+-------------------------------------------------
+EnsureSV = function()
+    AutoJunkDestroyerDB = AutoJunkDestroyerDB or {}
+end
+
+SavePopupButtonPosition = function()
+    -- Don't write position while the addon is disabled
+    if paused or inBattleground or InCombat() then return end
+    EnsureSV()
+
+    -- Use absolute screen coords so the saved data always changes when you drag.
+    local left = button:GetLeft()
+    local top  = button:GetTop()
+    if not left or not top then return end
+
+    AutoJunkDestroyerDB.popupButtonPos = {
+        x = left,
+        y = top,
+    }
+end
+
+ApplyPopupButtonPosition = function()
+    EnsureSV()
+    local p = AutoJunkDestroyerDB.popupButtonPos
+    if not p or not p.x or not p.y then return end
+
+    button:ClearAllPoints()
+    -- Place TOPLEFT of the button at saved screen coords
+    button:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", p.x, p.y)
+end
+
+ResetPopupButtonPosition = function()
+    EnsureSV()
+    AutoJunkDestroyerDB.popupButtonPos = nil
+    button:ClearAllPoints()
+    button:SetPoint("CENTER")
+end
+
 
 -------------------------------------------------
 -- Button Text / Visibility
@@ -101,18 +177,23 @@ local function UpdateButtonText()
 end
 
 local function UpdateButtonVisibility(auto)
-    -- Never show in BG, while paused, or during combat
     if paused or inBattleground or InCombat() then
         button:Hide()
         return
     end
 
     local greys = GetGreyItems()
-    if auto and BagsAreFull() and #greys > 0 then
-        button:Show()
-        SetButtonCount(#greys)
-    elseif auto then
-        button:Hide()
+
+    -- Show trigger: bags at/above threshold.
+    -- Keep-visible behavior: once shown, stay shown while greys remain
+    -- (prevents hiding after freeing 1 slot when you delete just one item).
+    if auto then
+        if (#greys > 0) and (BagsAtOrAboveThreshold() or button:IsShown()) then
+            button:Show()
+            SetButtonCount(#greys)
+        else
+            button:Hide()
+        end
     end
 end
 
@@ -120,7 +201,6 @@ end
 -- Enable logic (combat-safe)
 -------------------------------------------------
 local function EnableAddonNow()
-    -- If we re-entered a BG, do nothing
     if IsInBattleground() then return end
 
     pendingEnableAfterCombat = false
@@ -137,13 +217,11 @@ end
 
 local function DelayedEnableAfterBG()
     C_Timer.After(BG_EXIT_DELAY, function()
-        -- If we re-entered a BG during the delay, do nothing
         if IsInBattleground() then return end
 
         if InCombat() then
             pendingEnableAfterCombat = true
             button:Hide()
-
             if not warnedWaitingForCombat then
                 Print("Left battleground — waiting for combat to end to re-enable.")
                 warnedWaitingForCombat = true
@@ -155,29 +233,22 @@ local function DelayedEnableAfterBG()
     end)
 end
 
--------------------------------------------------
--- Battleground state handler
--------------------------------------------------
 local function SetBattlegroundState(isInBG)
     local wasInBG = inBattleground
     inBattleground = isInBG
 
-    -- paused derived from userPaused OR battleground
     paused = userPaused or inBattleground
 
     if inBattleground then
-        -- Hard-disable behavior in BG
         pendingEnableAfterCombat = false
         warnedWaitingForCombat = false
         deleting = false
         greyQueue = {}
         button:Hide()
-
         if not wasInBG then
             Print("Entered battleground — addon disabled.")
         end
     else
-        -- Delay re-enable to avoid UI taint/errors during zone load
         if wasInBG then
             DelayedEnableAfterBG()
         else
@@ -186,25 +257,18 @@ local function SetBattlegroundState(isInBG)
     end
 end
 
--------------------------------------------------
--- Combat handlers (instant hide/show)
--------------------------------------------------
 local function OnEnterCombat()
-    -- Immediately hide UI to prevent taint/protected action errors
     button:Hide()
 end
 
 local function OnLeaveCombat()
-    -- Reset spam guard for the next time we might need it
     warnedWaitingForCombat = false
 
-    -- Combat ended: if we were waiting to enable after leaving BG, enable now.
     if pendingEnableAfterCombat and not IsInBattleground() then
         EnableAddonNow()
         return
     end
 
-    -- Otherwise just refresh visibility safely
     if not paused and not inBattleground then
         UpdateButtonVisibility(true)
     end
@@ -219,93 +283,50 @@ button:SetScript("OnClick", function()
         return
     end
 
-    if not deleting then
-        greyQueue = GetGreyItems()
-        deleting = true
-        -- Sync button count immediately to the queue size
-        SetButtonCount(#greyQueue)
-    end
+    -- Always rescan so the count stays accurate after each deletion.
+    local greys = GetGreyItems()
+    local count = #greys
 
-    if #greyQueue == 0 then
-        deleting = false
-        Print("No grey items to delete.")
+    if count == 0 then
+        Print("No grey items found.")
         SetButtonCount(0)
         UpdateButtonVisibility(true)
         return
     end
 
-    local item = table.remove(greyQueue, 1)
+    -- Delete ONE item (first grey found)
+    local item = greys[1]
+    local bag, slot = item.bag, item.slot
 
-    ClearCursor()
-    C_Container.PickupContainerItem(item.bag, item.slot)
+    C_Container.PickupContainerItem(bag, slot)
     if CursorHasItem() then
         DeleteCursorItem()
+        ClearCursor()
     end
 
-    if #greyQueue > 0 then
-        Print(#greyQueue .. " grey items remaining. Click again.")
-    else
-        deleting = false
-        Print("All grey items deleted.")
-    end
+    -- Bags update slightly after deletion; rescan shortly after to update the display.
+    C_Timer.After(0.10, function()
+        local remaining = GetGreyItems()
+        local rcount = #remaining
+        SetButtonCount(rcount)
 
-    -- Update the number immediately using the queue (avoids bag-scan lag)
-    SetButtonCount(#greyQueue)
+        if rcount > 0 then
+            Print(rcount .. " grey items remaining. Click again.")
+        else
+            Print("All grey items deleted.")
+        end
 
-    -- When finished, do a real rescan after the bag update settles
-    if not deleting then
-        C_Timer.After(0.05, function()
-            UpdateButtonVisibility(true)
-        end)
-    end
+        UpdateButtonText()
+        UpdateButtonVisibility(true)
+    end)
 end)
 
 -------------------------------------------------
--- Slash Commands
+-- AceDB + Minimap (LibDBIcon)
 -------------------------------------------------
-SLASH_AUTOJUNKDESTROYER1 = "/ajd"
-SlashCmdList.AUTOJUNKDESTROYER = function(msg)
-    msg = (msg or ""):lower()
-
-    if msg == "pause" then
-        userPaused = not userPaused
-        paused = userPaused or inBattleground
-
-        if inBattleground then
-            Print("Pause toggled, but you are in a battleground (addon remains disabled).")
-            button:Hide()
-        else
-            Print(userPaused and "Paused." or "Resumed.")
-            UpdateButtonVisibility(true)
-        end
-
-    elseif msg == "toggle" then
-        if paused or inBattleground or InCombat() then
-            Print("Addon is disabled right now (paused / battleground / combat).")
-            button:Hide()
-            return
-        end
-
-        if button:IsShown() then
-            button:Hide()
-            Print("Button hidden.")
-        else
-            button:Show()
-            UpdateButtonText()
-            Print("Button shown.")
-        end
-
-    else
-        Print("/ajd pause  - Pause deletion")
-        Print("/ajd toggle - Show/hide button")
-    end
-end
-
--------------------------------------------------
--- Minimap Icon (BugSack-style)
--------------------------------------------------
-local LDB = LibStub("LibDataBroker-1.1")
+local db -- AceDB database object (db.profile.*)
 local icon = LibStub("LibDBIcon-1.0")
+local LDB  = LibStub("LibDataBroker-1.1")
 
 local AJD_LDB = LDB:NewDataObject("AutoJunkDestroyer", {
     type = "data source",
@@ -330,12 +351,136 @@ local AJD_LDB = LDB:NewDataObject("AutoJunkDestroyer", {
     OnTooltipShow = function(tt)
         tt:AddLine("AutoJunkDestroyer")
         tt:AddLine("Left-click: Toggle delete button")
-        tt:AddLine("Use /ajd pause to pause deletion")
+        tt:AddLine("Drag: Move minimap icon (saved via AceDB)")
+        tt:AddLine("/ajd minimap hide|show|lock|unlock|reset")
     end,
 })
 
-AutoJunkDestroyerDB = AutoJunkDestroyerDB or {}
-icon:Register("AutoJunkDestroyer", AJD_LDB, AutoJunkDestroyerDB)
+local function InitAceDB()
+    local AceDB = LibStub("AceDB-3.0", true)
+    if not AceDB then
+        Print("ERROR: AceDB-3.0 not found. Make sure it’s included in Libs and listed in the TOC.")
+        return
+    end
+
+    local defaults = {
+        profile = {
+            minimap = {
+                hide = false,
+                lock = false,
+                minimapPos = 220,
+            },
+        },
+    }
+
+    db = AceDB:New("AutoJunkDestroyerDB", defaults, true)
+
+    -- Register LibDBIcon against db.profile.minimap (this is the standard working pattern)
+    icon:Register("AutoJunkDestroyer", AJD_LDB, db.profile.minimap)
+    icon:Refresh("AutoJunkDestroyer", db.profile.minimap)
+
+    Print("Minimap: AceDB enabled (position will save).")
+end
+
+-------------------------------------------------
+-- Slash Commands
+-------------------------------------------------
+SLASH_AUTOJUNKDESTROYER1 = "/ajd"
+SlashCmdList.AUTOJUNKDESTROYER = function(msg)
+    msg = (msg or ""):lower()
+
+    if msg == "pause" then
+        userPaused = not userPaused
+        paused = userPaused or inBattleground
+        Print(userPaused and "Paused." or "Resumed.")
+        UpdateButtonVisibility(true)
+        return
+    end
+
+
+    if msg:match("^button") then
+        local arg = msg:match("^button%s*(.*)$") or ""
+        arg = arg:lower()
+
+        if arg == "reset" then
+            ResetPopupButtonPosition()
+            Print("Popup button position reset.")
+        else
+            EnsureSV()
+            local p = AutoJunkDestroyerDB.popupButtonPos
+            if p then
+                Print("PopupPos (saved): x=" .. tostring(p.x) .. " y=" .. tostring(p.y))
+            else
+                local l, t = button:GetLeft(), button:GetTop()
+                Print("PopupPos not saved yet. Current left=" .. tostring(l) .. " top=" .. tostring(t))
+            end
+        end
+        return
+    end
+
+    if msg:match("^minimap") then
+        if not db then
+            Print("Minimap DB not ready yet.")
+            return
+        end
+
+        local arg = msg:match("^minimap%s*(.*)$") or ""
+        arg = arg:lower()
+
+        if arg == "hide" then
+            db.profile.minimap.hide = true
+            icon:Hide("AutoJunkDestroyer")
+            Print("Minimap icon hidden.")
+        elseif arg == "show" then
+            db.profile.minimap.hide = false
+            icon:Show("AutoJunkDestroyer")
+            Print("Minimap icon shown.")
+        elseif arg == "lock" then
+            db.profile.minimap.lock = true
+            icon:Lock("AutoJunkDestroyer")
+            Print("Minimap icon locked.")
+        elseif arg == "unlock" then
+            db.profile.minimap.lock = false
+            icon:Unlock("AutoJunkDestroyer")
+            Print("Minimap icon unlocked.")
+        elseif arg == "reset" then
+            db.profile.minimap.minimapPos = 220
+            icon:Refresh("AutoJunkDestroyer", db.profile.minimap)
+            Print("Minimap icon position reset.")
+        elseif arg == "pos" or arg == "" then
+            Print("MinimapPos (saved): " .. tostring(db.profile.minimap.minimapPos) ..
+                  " | hide=" .. tostring(db.profile.minimap.hide) ..
+                  " | lock=" .. tostring(db.profile.minimap.lock))
+        else
+            Print("/ajd minimap reset")
+
+        end
+        return
+    end
+
+    if msg == "toggle" then
+        if paused or inBattleground or InCombat() then
+            Print("Addon is disabled right now (paused / battleground / combat).")
+            button:Hide()
+            return
+        end
+
+        if button:IsShown() then
+            button:Hide()
+            Print("Button hidden.")
+        else
+            button:Show()
+            UpdateButtonText()
+            Print("Button shown.")
+        end
+        return
+    end
+
+    Print("/ajd pause")
+    Print("/ajd toggle")
+    Print("/ajd minimap reset")
+
+end
 
 -------------------------------------------------
 -- Events
@@ -343,11 +488,14 @@ icon:Register("AutoJunkDestroyer", AJD_LDB, AutoJunkDestroyerDB)
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("BAG_UPDATE")
-frame:RegisterEvent("PLAYER_REGEN_DISABLED") -- enter combat
-frame:RegisterEvent("PLAYER_REGEN_ENABLED")  -- leave combat
+frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+frame:RegisterEvent("PLAYER_LOGOUT")
 
 frame:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
+        InitAceDB()
+        ApplyPopupButtonPosition()
         SetBattlegroundState(IsInBattleground())
         Print("Loaded (Classic 1.15.8).")
         UpdateButtonVisibility(true)
@@ -360,6 +508,9 @@ frame:SetScript("OnEvent", function(_, event)
 
     elseif event == "PLAYER_REGEN_ENABLED" then
         OnLeaveCombat()
+
+    elseif event == "PLAYER_LOGOUT" then
+        SavePopupButtonPosition()
 
     elseif event == "BAG_UPDATE" then
         if not deleting and not paused and not inBattleground and not InCombat() then
