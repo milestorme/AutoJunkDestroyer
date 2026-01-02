@@ -4,6 +4,56 @@
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
 -- Version: 1.0.9
+-------------------------------------------------
+-- FUNCTION INDEX
+-------------------------------------------------
+-- Utility
+--   Print(msg)                       -> Standardized chat output
+--   IsInBattleground()               -> Returns true if player is in a BG
+--   InCombat()                       -> Safe combat state detection
+
+-- Grey Item Handling
+--   GetGreyItems()                   -> Returns table of all grey-quality items
+--   GetBagUsage()                    -> Returns used/free/total bag slots + percent used
+--   BagsAtOrAboveThreshold()         -> True if bag usage >= configured threshold
+
+-- Popup Button Management
+--   SetButtonCount(count)            -> Updates button text with item count
+--   UpdateButtonText()               -> Refreshes displayed count
+--   UpdateButtonVisibility(auto)     -> Shows/hides button based on state
+--   SavePopupButtonPosition()        -> Saves button screen position
+--   ApplyPopupButtonPosition()       -> Restores saved button position
+--   ResetPopupButtonPosition()       -> Clears saved button position
+
+-- Battleground & Combat Handling
+--   EnableAddonNow()                 -> Re-enables addon after BG/combat
+--   DelayedEnableAfterBG()           -> Safe delayed re-enable after BG exit
+--   SetBattlegroundState(isInBG)     -> Central BG state manager
+--   OnEnterCombat()                  -> Combat entry handler
+--   OnLeaveCombat()                  -> Combat exit handler
+
+-- Deletion Logic
+--   (Button OnClick)                 -> Deletes one grey item safely per click
+
+-- Minimap / LibDataBroker
+--   InitAceDB()                      -> Initializes AceDB + LibDBIcon
+--   LDB.OnClick()                    -> Minimap click handler
+--   LDB.OnTooltipShow()              -> Minimap tooltip text
+
+-- Slash Commands
+--   /ajd pause                       -> Toggle pause
+--   /ajd toggle                      -> Toggle popup visibility
+--   /ajd button [reset]              -> Show/reset popup position
+--   /ajd minimap [show|hide|lock|unlock|reset|pos]
+
+-- Event Handling
+--   PLAYER_LOGIN                     -> Initialization
+--   PLAYER_ENTERING_WORLD            -> BG state detection
+--   PLAYER_REGEN_DISABLED            -> Combat start
+--   PLAYER_REGEN_ENABLED             -> Combat end
+--   BAG_UPDATE                       -> Bag change handling
+--   PLAYER_LOGOUT                    -> Persist saved data
+-------------------------------------------------
 
 local ADDON_NAME = ...
 local frame = CreateFrame("Frame")
