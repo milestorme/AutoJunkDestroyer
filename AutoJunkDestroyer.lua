@@ -3,7 +3,7 @@
 -- Author: Milestorme
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
--- Version: 1.0.8
+-- Version: 1.0.9
 
 local ADDON_NAME = ...
 local frame = CreateFrame("Frame")
@@ -18,7 +18,7 @@ local greyQueue = {}
 local deleting = false
 
 -- Delay after leaving battleground to avoid UI errors during zoning
-local BG_EXIT_DELAY = 1.5
+local BG_EXIT_DELAY = 0.5
 
 -- If we leave a BG while in combat, we defer enabling until combat ends.
 local pendingEnableAfterCombat = false
@@ -28,15 +28,18 @@ local warnedWaitingForCombat = false
 -- Utility
 -------------------------------------------------
 local function Print(msg)
+    -- notes: Unified chat output helper for consistent addon prefix formatting.
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00AutoJunkDestroyer:|r " .. msg)
 end
 
 local function IsInBattleground()
+    -- notes: Returns true when the player is in a PvP instance (battleground).
     local instanceType = select(2, IsInInstance())
     return instanceType == "pvp"
 end
 
 local function InCombat()
+    -- notes: Returns true if the player is in combat; uses InCombatLockdown if available, with fallback.
     return (InCombatLockdown and InCombatLockdown()) or UnitAffectingCombat("player")
 end
 
@@ -44,6 +47,8 @@ end
 -- Grey Item Scan
 -------------------------------------------------
 local function GetGreyItems()
+    -- notes: Scans all bags (0..NUM_BAG_SLOTS) and returns a list of grey (quality=0) items that have value.
+    -- notes: Each entry is { bag = <bagID>, slot = <slotID> }.
     local queue = {}
     for bag = 0, NUM_BAG_SLOTS do
         local slots = C_Container.GetContainerNumSlots(bag)
@@ -64,6 +69,8 @@ end
 local BAG_USAGE_THRESHOLD = 0.90
 
 local function GetBagUsage()
+    -- notes: Computes aggregate bag usage across all player bags.
+    -- notes: Returns usedSlots, freeSlots, totalSlots, percentUsed.
     local totalSlots = 0
     local freeSlots = 0
 
@@ -86,6 +93,7 @@ local function GetBagUsage()
 end
 
 local function BagsAtOrAboveThreshold()
+    -- notes: Convenience wrapper that returns true when bag usage >= BAG_USAGE_THRESHOLD.
     local _, _, totalSlots, percentUsed = GetBagUsage()
     if totalSlots <= 0 then return false end
     return percentUsed >= BAG_USAGE_THRESHOLD
@@ -106,10 +114,12 @@ button:SetMovable(true)
 button:EnableMouse(true)
 button:RegisterForDrag("LeftButton")
 button:SetScript("OnDragStart", function(self)
+    -- notes: Dragging is blocked when paused, in BG, or in combat (prevents protected/taint issues).
     if paused or inBattleground or InCombat() then return end
     self:StartMoving()
 end)
 button:SetScript("OnDragStop", function(self)
+    -- notes: Stops movement and persists the new position to SavedVariables.
     self:StopMovingOrSizing()
     SavePopupButtonPosition()
 end)
@@ -123,11 +133,13 @@ button:SetClampedToScreen(true)
 -- Saved to AutoJunkDestroyerDB.popupButtonPos so it will appear on disk.
 -------------------------------------------------
 EnsureSV = function()
+    -- notes: Ensures SavedVariables table exists (created lazily to avoid nil access).
     AutoJunkDestroyerDB = AutoJunkDestroyerDB or {}
 end
 
 SavePopupButtonPosition = function()
-    -- Don't write position while the addon is disabled
+    -- notes: Saves button TOP/LEFT screen coordinates into AutoJunkDestroyerDB.popupButtonPos.
+    -- notes: Skips saving while disabled/in BG/in combat to avoid bad/tainted state writes.
     if paused or inBattleground or InCombat() then return end
     EnsureSV()
 
@@ -143,6 +155,8 @@ SavePopupButtonPosition = function()
 end
 
 ApplyPopupButtonPosition = function()
+    -- notes: Restores the button position from AutoJunkDestroyerDB.popupButtonPos (if present).
+    -- notes: Anchors TOPLEFT of the button to UIParent's BOTTOMLEFT using saved absolute coords.
     EnsureSV()
     local p = AutoJunkDestroyerDB.popupButtonPos
     if not p or not p.x or not p.y then return end
@@ -153,6 +167,7 @@ ApplyPopupButtonPosition = function()
 end
 
 ResetPopupButtonPosition = function()
+    -- notes: Clears saved popup position and re-centers the button.
     EnsureSV()
     AutoJunkDestroyerDB.popupButtonPos = nil
     button:ClearAllPoints()
@@ -164,6 +179,7 @@ end
 -- Button Text / Visibility
 -------------------------------------------------
 local function SetButtonCount(count)
+    -- notes: Sets button label; includes remaining grey count when > 0.
     if count and count > 0 then
         button:SetText("Delete Grey Items (" .. count .. ")")
     else
@@ -172,11 +188,15 @@ local function SetButtonCount(count)
 end
 
 local function UpdateButtonText()
+    -- notes: Rescans grey items and updates the displayed count on the button.
     local greys = GetGreyItems()
     SetButtonCount(#greys)
 end
 
 local function UpdateButtonVisibility(auto)
+    -- notes: Controls when the delete button is shown/hidden based on:
+    -- notes: - disabled states (paused/BG/combat) -> always hidden
+    -- notes: - auto mode: show when bags are >= threshold and greys exist (or keep visible while greys remain)
     if paused or inBattleground or InCombat() then
         button:Hide()
         return
@@ -201,6 +221,8 @@ end
 -- Enable logic (combat-safe)
 -------------------------------------------------
 local function EnableAddonNow()
+    -- notes: Re-enables addon state after leaving BG (only if not actually still in BG).
+    -- notes: Resets queues/flags, restores pause state, and refreshes button visibility.
     if IsInBattleground() then return end
 
     pendingEnableAfterCombat = false
@@ -216,6 +238,8 @@ local function EnableAddonNow()
 end
 
 local function DelayedEnableAfterBG()
+    -- notes: After BG exit, waits BG_EXIT_DELAY seconds to avoid zoning-related UI/protected action errors.
+    -- notes: If still in combat at that time, defers enable until combat ends.
     C_Timer.After(BG_EXIT_DELAY, function()
         if IsInBattleground() then return end
 
@@ -234,6 +258,9 @@ local function DelayedEnableAfterBG()
 end
 
 local function SetBattlegroundState(isInBG)
+    -- notes: Central BG state handler:
+    -- notes: - entering BG: force pause/disable and hide UI
+    -- notes: - leaving BG: schedule delayed enable (combat/zoning safe)
     local wasInBG = inBattleground
     inBattleground = isInBG
 
@@ -258,10 +285,14 @@ local function SetBattlegroundState(isInBG)
 end
 
 local function OnEnterCombat()
+    -- notes: Combat entry handler; hides button to avoid protected action issues during combat.
     button:Hide()
 end
 
 local function OnLeaveCombat()
+    -- notes: Combat exit handler:
+    -- notes: - if we were waiting to re-enable after BG exit, re-enable now
+    -- notes: - otherwise refresh visibility if addon is active
     warnedWaitingForCombat = false
 
     if pendingEnableAfterCombat and not IsInBattleground() then
@@ -278,6 +309,8 @@ end
 -- Safe Deletion (1 item per click)
 -------------------------------------------------
 button:SetScript("OnClick", function()
+    -- notes: Click handler deletes exactly ONE grey item per click (combat/BG-safe).
+    -- notes: Rescans every click so counts stay accurate and avoids stale bag/slot pointers.
     if paused or inBattleground or InCombat() then
         Print("Cannot delete grey items right now.")
         return
@@ -332,7 +365,9 @@ local AJD_LDB = LDB:NewDataObject("AutoJunkDestroyer", {
     type = "data source",
     text = "AutoJunkDestroyer",
     icon = "Interface\\ICONS\\INV_Misc_Bag_08",
+
     OnClick = function()
+        -- notes: Minimap icon click toggles the popup delete button (when addon is active).
         if paused or inBattleground or InCombat() then
             Print("Addon is disabled right now (paused / battleground / combat).")
             button:Hide()
@@ -348,7 +383,9 @@ local AJD_LDB = LDB:NewDataObject("AutoJunkDestroyer", {
             Print("Button shown via minimap.")
         end
     end,
+
     OnTooltipShow = function(tt)
+        -- notes: Tooltip helper for minimap icon; displays quick usage hints.
         tt:AddLine("AutoJunkDestroyer")
         tt:AddLine("Left-click: Toggle delete button")
         tt:AddLine("Drag: Move minimap icon (saved via AceDB)")
@@ -357,6 +394,8 @@ local AJD_LDB = LDB:NewDataObject("AutoJunkDestroyer", {
 })
 
 local function InitAceDB()
+    -- notes: Initializes AceDB and registers LibDBIcon using db.profile.minimap as the storage table.
+    -- notes: This ensures minimap icon position/hide/lock persist reliably.
     local AceDB = LibStub("AceDB-3.0", true)
     if not AceDB then
         Print("ERROR: AceDB-3.0 not found. Make sure it’s included in Libs and listed in the TOC.")
@@ -387,6 +426,8 @@ end
 -------------------------------------------------
 SLASH_AUTOJUNKDESTROYER1 = "/ajd"
 SlashCmdList.AUTOJUNKDESTROYER = function(msg)
+    -- notes: Slash command router for /ajd.
+    -- notes: Supports: pause, toggle, button [reset], minimap [hide/show/lock/unlock/reset/pos]
     msg = (msg or ""):lower()
 
     if msg == "pause" then
@@ -397,8 +438,8 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
         return
     end
 
-
     if msg:match("^button") then
+        -- notes: /ajd button -> prints saved popup position; /ajd button reset -> clears saved position.
         local arg = msg:match("^button%s*(.*)$") or ""
         arg = arg:lower()
 
@@ -419,6 +460,7 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     end
 
     if msg:match("^minimap") then
+        -- notes: /ajd minimap controls LibDBIcon state (hide/show/lock/unlock/reset/pos).
         if not db then
             Print("Minimap DB not ready yet.")
             return
@@ -453,12 +495,12 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
                   " | lock=" .. tostring(db.profile.minimap.lock))
         else
             Print("/ajd minimap reset")
-
         end
         return
     end
 
     if msg == "toggle" then
+        -- notes: /ajd toggle shows/hides the popup delete button (only when addon is active).
         if paused or inBattleground or InCombat() then
             Print("Addon is disabled right now (paused / battleground / combat).")
             button:Hide()
@@ -476,10 +518,10 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
         return
     end
 
+    -- notes: Default help output.
     Print("/ajd pause")
     Print("/ajd toggle")
     Print("/ajd minimap reset")
-
 end
 
 -------------------------------------------------
@@ -493,7 +535,9 @@ frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:RegisterEvent("PLAYER_LOGOUT")
 
 frame:SetScript("OnEvent", function(_, event)
+    -- notes: Central event dispatcher; keeps addon state in sync with login, zoning, combat, and bag changes.
     if event == "PLAYER_LOGIN" then
+        -- notes: Initialize persistent systems and apply saved UI position.
         InitAceDB()
         ApplyPopupButtonPosition()
         SetBattlegroundState(IsInBattleground())
@@ -501,18 +545,23 @@ frame:SetScript("OnEvent", function(_, event)
         UpdateButtonVisibility(true)
 
     elseif event == "PLAYER_ENTERING_WORLD" then
+        -- notes: Fires during zoning/instance changes; used to update BG state on transitions.
         SetBattlegroundState(IsInBattleground())
 
     elseif event == "PLAYER_REGEN_DISABLED" then
+        -- notes: Entering combat.
         OnEnterCombat()
 
     elseif event == "PLAYER_REGEN_ENABLED" then
+        -- notes: Leaving combat.
         OnLeaveCombat()
 
     elseif event == "PLAYER_LOGOUT" then
+        -- notes: Persist popup position at logout (best-effort; guarded inside function).
         SavePopupButtonPosition()
 
     elseif event == "BAG_UPDATE" then
+        -- notes: Updates button visibility when bags change (only when safe/active).
         if not deleting and not paused and not inBattleground and not InCombat() then
             UpdateButtonVisibility(true)
         end
