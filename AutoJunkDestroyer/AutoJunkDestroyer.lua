@@ -3,7 +3,7 @@
 -- Author: Milestorme
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
--- Version: 1.0.9
+-- Version: 1.1.0
 -------------------------------------------------
 -- FUNCTION INDEX
 -------------------------------------------------
@@ -64,6 +64,7 @@ local userPaused = false
 local paused = false
 local inBattleground = false
 
+local booting = true  -- true during reload/zone transitions; prevents early auto-pop
 local greyQueue = {}
 local deleting = false
 
@@ -248,6 +249,14 @@ local function UpdateButtonVisibility(auto)
     -- notes: - disabled states (paused/BG/combat) -> always hidden
     -- notes: - auto mode: show when bags are >= threshold and greys exist (or keep visible while greys remain)
     if paused or inBattleground or InCombat() then
+        button:Hide()
+        return
+    end
+
+
+    -- During reload/zone transitions, bag APIs can report transient values.
+    -- Avoid auto-pop until bags have stabilized.
+    if auto and booting then
         button:Hide()
         return
     end
@@ -587,14 +596,26 @@ frame:RegisterEvent("PLAYER_LOGOUT")
 frame:SetScript("OnEvent", function(_, event)
     -- notes: Central event dispatcher; keeps addon state in sync with login, zoning, combat, and bag changes.
     if event == "PLAYER_LOGIN" then
+        booting = true
         -- notes: Initialize persistent systems and apply saved UI position.
         InitAceDB()
         ApplyPopupButtonPosition()
         SetBattlegroundState(IsInBattleground())
+        C_Timer.After(0.75, function()
+            booting = false
+            if not paused and not inBattleground and not InCombat() then
+                UpdateButtonVisibility(true)
+            end
+        end)
         Print("Loaded (Classic 1.15.8).")
-        UpdateButtonVisibility(true)
-
+        C_Timer.After(1.0, function()
+            booting = false
+            if not paused and not inBattleground and not InCombat() then
+                UpdateButtonVisibility(true)
+            end
+        end)
     elseif event == "PLAYER_ENTERING_WORLD" then
+        booting = true
         -- notes: Fires during zoning/instance changes; used to update BG state on transitions.
         SetBattlegroundState(IsInBattleground())
 
