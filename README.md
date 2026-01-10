@@ -74,3 +74,30 @@ Designed for **WoW Classic Era**, with robust handling for combat lockdowns, zon
 ## 📦 Installation
 
 https://www.curseforge.com/wow/addons/auto-junk-destroyer
+
+---
+
+## 🔮 Soul Shard Deletion (Warlock Utility)
+
+AutoJunkDestroyer also includes an **optional Soul Shard cleanup tool** for Warlocks.
+
+- 🟣 **Right-click the minimap icon** to toggle a movable button:
+  - **“Delete Soul Shards (N)”**
+- Deletes **one Soul Shard per click** (item ID 6265)
+- **Fully Blizzard-safe**
+  - No auto-delete loops
+  - No protected actions
+  - One click = one delete
+- ⚔ **Combat / battleground safe**
+  - Disabled during combat or in battlegrounds
+- 💬 **Clear chat feedback**
+  - Prints confirmation after each delete
+  - Shows **remaining Soul Shard count**, synced with bag updates
+- 🧲 **Movable & persistent**
+  - Drag to reposition
+  - Position is saved across reloads and logouts
+- 🔁 **Live updates**
+  - Button count updates immediately as shards are deleted
+
+> This feature is completely independent of grey item deletion and never triggers automatically.
+

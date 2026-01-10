@@ -3,7 +3,7 @@
 -- Author: Milestorme
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
--- Version: 1.1.0
+-- Version: Classic 1.15.8
 -------------------------------------------------
 -- FUNCTION INDEX
 -------------------------------------------------
@@ -65,9 +65,7 @@ local paused = false
 local inBattleground = false
 
 local booting = true  -- true during reload/zone transitions; prevents early auto-pop
-local greyQueue = {}
-local deleting = false
-
+local bagRefreshPending = false
 -- Delay after leaving battleground to avoid UI errors during zoning
 local BG_EXIT_DELAY = 0.5
 
@@ -117,7 +115,47 @@ end
 
 -- Bag capacity tracking
 -- Show the delete button once bags reach this usage percentage (e.g. 0.90 = 90% full)
-local BAG_USAGE_THRESHOLD = 0.90
+local DEFAULT_BAG_USAGE_THRESHOLD = 0.90
+
+-- Soul Shard support (Warlock)
+local SOUL_SHARD_ITEM_ID = 6265
+
+-------------------------------------------------
+-- SavedVariables / Settings
+-------------------------------------------------
+local function EnsureSV()
+        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
+    AutoJunkDestroyerDB = AutoJunkDestroyerDB or {}
+    AutoJunkDestroyerDB.settings = AutoJunkDestroyerDB.settings or {}
+
+    if AutoJunkDestroyerDB.settings.bagUsageThreshold == nil then
+        AutoJunkDestroyerDB.settings.bagUsageThreshold = DEFAULT_BAG_USAGE_THRESHOLD
+    end
+
+    -- Clamp to sane range
+    local t = tonumber(AutoJunkDestroyerDB.settings.bagUsageThreshold) or DEFAULT_BAG_USAGE_THRESHOLD
+    if t > 1 then t = t / 100 end
+    if t < 0.50 then t = 0.50 end
+    if t > 0.99 then t = 0.99 end
+    AutoJunkDestroyerDB.settings.bagUsageThreshold = t
+AutoJunkDestroyerDB.settings.shardButtonPos = AutoJunkDestroyerDB.settings.shardButtonPos or { point = "CENTER", x = 0, y = 0 }
+AutoJunkDestroyerDB.settings.shardButtonVisible = (AutoJunkDestroyerDB.settings.shardButtonVisible ~= false)
+
+
+end
+
+
+local function GetBagUsageThreshold()
+    EnsureSV()
+        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
+    local t = AutoJunkDestroyerDB.settings and AutoJunkDestroyerDB.settings.bagUsageThreshold
+    if type(t) ~= "number" then
+        return DEFAULT_BAG_USAGE_THRESHOLD
+    end
+    if t < 0.50 then t = 0.50 end
+    if t > 0.99 then t = 0.99 end
+    return t
+end
 
 local function GetBagUsage()
     -- notes: Computes aggregate bag usage across all player bags.
@@ -147,7 +185,7 @@ local function BagsAtOrAboveThreshold()
     -- notes: Convenience wrapper that returns true when bag usage >= BAG_USAGE_THRESHOLD.
     local _, _, totalSlots, percentUsed = GetBagUsage()
     if totalSlots <= 0 then return false end
-    return percentUsed >= BAG_USAGE_THRESHOLD
+    return percentUsed >= GetBagUsageThreshold()
 end
 
 -------------------------------------------------
@@ -186,40 +224,59 @@ button:SetClampedToScreen(true)
 EnsureSV = function()
     -- notes: Ensures SavedVariables table exists (created lazily to avoid nil access).
     AutoJunkDestroyerDB = AutoJunkDestroyerDB or {}
+    AutoJunkDestroyerDB.settings = AutoJunkDestroyerDB.settings or {}
+    if type(AutoJunkDestroyerDB.settings.bagUsageThreshold) ~= "number" then
+        AutoJunkDestroyerDB.settings.bagUsageThreshold = DEFAULT_BAG_USAGE_THRESHOLD
+    end
 end
 
 SavePopupButtonPosition = function()
-    -- notes: Saves button TOP/LEFT screen coordinates into AutoJunkDestroyerDB.popupButtonPos.
+    -- notes: Saves button position into AutoJunkDestroyerDB.popupButtonPos.
+    -- notes: Uses UIParent CENTER-relative offsets so it survives resolution/UI scale changes better.
     -- notes: Skips saving while disabled/in BG/in combat to avoid bad/tainted state writes.
     if paused or inBattleground or InCombat() then return end
     EnsureSV()
 
-    -- Use absolute screen coords so the saved data always changes when you drag.
-    local left = button:GetLeft()
-    local top  = button:GetTop()
-    if not left or not top then return end
+        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
+    local bx, by = button:GetCenter()
+    local ux, uy = UIParent:GetCenter()
+    if not bx or not by or not ux or not uy then return end
 
     AutoJunkDestroyerDB.popupButtonPos = {
-        x = left,
-        y = top,
+        point = "CENTER",
+        relPoint = "CENTER",
+        x = bx - ux,
+        y = by - uy,
+        uiScale = UIParent:GetEffectiveScale(),
     }
 end
 
 ApplyPopupButtonPosition = function()
     -- notes: Restores the button position from AutoJunkDestroyerDB.popupButtonPos (if present).
-    -- notes: Anchors TOPLEFT of the button to UIParent's BOTTOMLEFT using saved absolute coords.
+    -- notes: Supports both the newer CENTER-relative format and the older absolute TOPLEFT coords.
     EnsureSV()
+        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
     local p = AutoJunkDestroyerDB.popupButtonPos
-    if not p or not p.x or not p.y then return end
+    if not p then return end
 
     button:ClearAllPoints()
-    -- Place TOPLEFT of the button at saved screen coords
-    button:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", p.x, p.y)
+
+    -- New format (preferred)
+    if p.point and type(p.x) == "number" and type(p.y) == "number" then
+        button:SetPoint(p.point, UIParent, p.relPoint or "CENTER", p.x, p.y)
+        return
+    end
+
+    -- Legacy format fallback: absolute screen coords anchored via UIParent bottom-left
+    if type(p.x) == "number" and type(p.y) == "number" then
+        button:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", p.x, p.y)
+    end
 end
 
 ResetPopupButtonPosition = function()
     -- notes: Clears saved popup position and re-centers the button.
     EnsureSV()
+        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
     AutoJunkDestroyerDB.popupButtonPos = nil
     button:ClearAllPoints()
     button:SetPoint("CENTER")
@@ -238,9 +295,9 @@ local function SetButtonCount(count)
     end
 end
 
-local function UpdateButtonText()
-    -- notes: Rescans grey items and updates the displayed count on the button.
-    local greys = GetGreyItems()
+local function UpdateButtonText(greys)
+    -- notes: Updates the displayed count on the button. Accepts an optional pre-scanned greys table.
+    greys = greys or GetGreyItems()
     SetButtonCount(#greys)
 end
 
@@ -276,6 +333,22 @@ local function UpdateButtonVisibility(auto)
     end
 end
 
+
+local function ScheduleBagRefresh(delaySeconds)
+    -- notes: Debounces bag refreshes (bag update events can fire many times).
+    -- notes: Default delay is small to allow bag APIs to settle.
+    if bagRefreshPending then return end
+    bagRefreshPending = true
+    C_Timer.After(delaySeconds or 0.15, function()
+        bagRefreshPending = false
+        if paused or inBattleground or InCombat() then
+            button:Hide()
+            return
+        end
+        UpdateButtonVisibility(true)
+    end)
+end
+
 -------------------------------------------------
 -- Enable logic (combat-safe)
 -------------------------------------------------
@@ -289,8 +362,6 @@ local function EnableAddonNow()
 
     inBattleground = false
     paused = userPaused
-    deleting = false
-    greyQueue = {}
 
     Print("Left battleground — addon enabled.")
     UpdateButtonVisibility(true)
@@ -328,8 +399,6 @@ local function SetBattlegroundState(isInBG)
     if inBattleground then
         pendingEnableAfterCombat = false
         warnedWaitingForCombat = false
-        deleting = false
-        greyQueue = {}
         button:Hide()
         if not wasInBG then
             Print("Entered battleground — addon disabled.")
@@ -420,13 +489,39 @@ local db -- AceDB database object (db.profile.*)
 local icon = LibStub("LibDBIcon-1.0")
 local LDB  = LibStub("LibDataBroker-1.1")
 
+
+-- Forward declarations for Soul Shard popup (must exist before minimap OnClick handler)
+local shardFrame, shardButton
+local CreateShardButtonFrame
+local UpdateShardButtonText
+
+local RefreshShardUI
+
+-- One-shot chat print after shard deletion (waits for BAG_UPDATE_DELAYED)
+local pendingShardDeletePrint
+local pendingShardDeleteLink
+local pendingShardDeleteAt
+
 local AJD_LDB = LDB:NewDataObject("AutoJunkDestroyer", {
-    type = "data source",
+    
+type = "data source",
     text = "AutoJunkDestroyer",
     icon = "Interface\\ICONS\\INV_Misc_Bag_08",
 
-    OnClick = function()
+    OnClick = function(_, mouseButton)
         -- notes: Minimap icon click toggles the popup delete button (when addon is active).
+-- Right-click: toggle Soul Shard delete popup
+if mouseButton == "RightButton" then
+    CreateShardButtonFrame()
+    if shardFrame:IsShown() then
+        shardFrame:Hide()
+    else
+        shardFrame:Show()
+        UpdateShardButtonText()
+    end
+    return
+end
+
         if paused or inBattleground or InCombat() then
             Print("Addon is disabled right now (paused / battleground / combat).")
             button:Hide()
@@ -446,7 +541,8 @@ local AJD_LDB = LDB:NewDataObject("AutoJunkDestroyer", {
     OnTooltipShow = function(tt)
         -- notes: Tooltip helper for minimap icon; displays quick usage hints.
         tt:AddLine("AutoJunkDestroyer")
-        tt:AddLine("Left-click: Toggle delete button")
+        tt:AddLine("Left-click: Toggle junk delete button")
+        tt:AddLine("Right-click: Soul Shard delete popup")
         tt:AddLine("Drag: Move minimap icon (saved via AceDB)")
         tt:AddLine("/ajd minimap hide|show|lock|unlock|reset")
     end,
@@ -486,7 +582,7 @@ end
 SLASH_AUTOJUNKDESTROYER1 = "/ajd"
 SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     -- notes: Slash command router for /ajd.
-    -- notes: Supports: pause, toggle, button [reset], minimap [hide/show/lock/unlock/reset/pos]
+    -- notes: Supports: pause, toggle, threshold, button [reset], minimap [hide/show/lock/unlock/reset/pos]
     msg = (msg or ""):lower()
 
     if msg == "pause" then
@@ -494,6 +590,32 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
         paused = userPaused or inBattleground
         Print(userPaused and "Paused." or "Resumed.")
         UpdateButtonVisibility(true)
+        return
+    end
+
+    if msg:match("^threshold") then
+        EnsureSV()
+        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
+        local arg = msg:match("^threshold%s*(.*)$") or ""
+        if arg == "" then
+            Print("Bag threshold is set to " .. tostring(math.floor(GetBagUsageThreshold() * 100 + 0.5)) .. "%.")
+            return
+        end
+
+        local v = tonumber(arg)
+        if not v then
+            Print("Usage: /ajd threshold 90   (or 0.90)")
+            return
+        end
+
+        -- Allow "90" or "0.90"
+        if v > 1.0 then v = v / 100 end
+        if v < 0.50 then v = 0.50 end
+        if v > 0.99 then v = 0.99 end
+
+        AutoJunkDestroyerDB.settings.bagUsageThreshold = v
+        Print("Bag threshold set to " .. tostring(math.floor(v * 100 + 0.5)) .. "%.")
+        ScheduleBagRefresh(0)
         return
     end
 
@@ -507,10 +629,15 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
             Print("Popup button position reset.")
         else
             EnsureSV()
+        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
             local p = AutoJunkDestroyerDB.popupButtonPos
             if p then
-                Print("PopupPos (saved): x=" .. tostring(p.x) .. " y=" .. tostring(p.y))
+            if p.point then
+                Print("PopupPos (saved): xOfs=" .. tostring(p.x) .. " yOfs=" .. tostring(p.y) .. " (" .. tostring(p.point) .. ")")
             else
+                Print("PopupPos (saved): x=" .. tostring(p.x) .. " y=" .. tostring(p.y))
+            end
+        else
                 local l, t = button:GetLeft(), button:GetTop()
                 Print("PopupPos not saved yet. Current left=" .. tostring(l) .. " top=" .. tostring(t))
             end
@@ -580,6 +707,7 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     -- notes: Default help output.
     Print("/ajd pause")
     Print("/ajd toggle")
+    Print("/ajd threshold 90")
     Print("/ajd minimap reset")
 end
 
@@ -588,10 +716,160 @@ end
 -------------------------------------------------
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-frame:RegisterEvent("BAG_UPDATE")
+frame:RegisterEvent("BAG_UPDATE_DELAYED")
 frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:RegisterEvent("PLAYER_LOGOUT")
+
+-------------------------------------------------
+-- Soul Shard Helpers
+-------------------------------------------------
+local function CountSoulShards()
+    local total = 0
+    for bag = 0, NUM_BAG_SLOTS do
+        local slots = C_Container.GetContainerNumSlots(bag)
+        if slots and slots > 0 then
+            for slot = 1, slots do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and info.itemID == SOUL_SHARD_ITEM_ID then
+                    total = total + (info.stackCount or 1)
+                end
+            end
+        end
+    end
+    return total
+end
+
+local function FindSoulShardSlot()
+    for bag = 0, NUM_BAG_SLOTS do
+        local slots = C_Container.GetContainerNumSlots(bag)
+        if slots and slots > 0 then
+            for slot = 1, slots do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and info.itemID == SOUL_SHARD_ITEM_ID then
+                    return bag, slot, info
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function DeleteSoulShardOnce()
+    if InCombatLockdown() then
+        Print("Cannot delete items while in combat.")
+        return false
+    end
+    if IsInBattleground() then
+        Print("Cannot delete items in battlegrounds.")
+        return false
+    end
+    if CursorHasItem() then
+        Print("Your cursor is holding an item. Please clear it first.")
+        return false
+    end
+
+    local bag, slot, info = FindSoulShardSlot()
+    if not bag then
+        Print("No Soul Shards found.")
+        return false
+    end
+
+    local link = info and info.hyperlink or "Soul Shard"
+
+    C_Container.PickupContainerItem(bag, slot)
+    if not CursorHasItem() then
+        Print("Failed to pick up Soul Shard for deletion.")
+        return false
+    end
+
+    DeleteCursorItem()
+
+    -- Defer chat output until BAG_UPDATE_DELAYED so the count matches the button (and actual bags).
+    pendingShardDeletePrint = true
+    pendingShardDeleteLink = link
+    pendingShardDeleteAt = GetTime()
+
+    -- Trigger normal refresh path (same as grey delete)
+    if ScheduleBagRefresh then
+        ScheduleBagRefresh()
+    end
+
+    -- Fallback: if BAG_UPDATE_DELAYED doesn't arrive (rare), print after a short delay.
+    C_Timer.After(0.75, function()
+        if pendingShardDeletePrint and pendingShardDeleteAt and (GetTime() - pendingShardDeleteAt) >= 0.70 then
+            local remaining = CountSoulShards()
+            Print(("Deleted %s. Remaining Soul Shards: %d"):format(pendingShardDeleteLink or "Soul Shard", remaining))
+            pendingShardDeletePrint = nil
+            pendingShardDeleteLink = nil
+            pendingShardDeleteAt = nil
+            RefreshShardUI()
+        end
+    end)
+
+    return true
+end
+
+
+UpdateShardButtonText = function()
+    if not shardButton then return end
+    local n = CountSoulShards()
+    shardButton:SetText(("Delete Soul Shards (%d)"):format(n))
+    shardButton:SetEnabled(n > 0 and not InCombatLockdown() and not IsInBattleground() and not CursorHasItem())
+end
+
+
+RefreshShardUI = function()
+    if shardFrame and shardFrame:IsShown() then
+        UpdateShardButtonText()
+    end
+end
+
+
+
+CreateShardButtonFrame = function()
+    if shardFrame then return end
+
+    shardFrame = CreateFrame("Button", "AutoJunkDestroyer_ShardButton", UIParent, "UIPanelButtonTemplate")
+    shardFrame:SetSize(200, 24)
+    shardFrame:SetFrameStrata("DIALOG")
+    shardFrame:SetClampedToScreen(true)
+    shardFrame:SetMovable(true)
+    shardFrame:EnableMouse(true)
+    shardFrame:RegisterForDrag("LeftButton")
+
+    shardFrame:SetScript("OnDragStart", function(self)
+        if InCombatLockdown() then return end
+        self:StartMoving()
+    end)
+    shardFrame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, _, x, y = self:GetPoint(1)
+        AutoJunkDestroyerDB.settings.shardButtonPos = AutoJunkDestroyerDB.settings.shardButtonPos or {}
+        AutoJunkDestroyerDB.settings.shardButtonPos.point = point or "CENTER"
+        AutoJunkDestroyerDB.settings.shardButtonPos.x = x or 0
+        AutoJunkDestroyerDB.settings.shardButtonPos.y = y or 0
+    end)
+
+    shardButton = shardFrame
+    shardButton:SetText("Delete Soul Shards")
+    shardButton:SetScript("OnClick", function()
+        DeleteSoulShardOnce()
+    end)
+
+    -- Restore saved position
+    local pos = AutoJunkDestroyerDB and AutoJunkDestroyerDB.settings and AutoJunkDestroyerDB.settings.shardButtonPos
+    shardFrame:ClearAllPoints()
+    if pos and pos.point then
+        shardFrame:SetPoint(pos.point, UIParent, pos.point, pos.x or 0, pos.y or 0)
+    else
+        shardFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
+
+    shardFrame:Hide()
+    UpdateShardButtonText()
+end
+
 
 frame:SetScript("OnEvent", function(_, event)
     -- notes: Central event dispatcher; keeps addon state in sync with login, zoning, combat, and bag changes.
@@ -603,21 +881,17 @@ frame:SetScript("OnEvent", function(_, event)
         SetBattlegroundState(IsInBattleground())
         C_Timer.After(0.75, function()
             booting = false
-            if not paused and not inBattleground and not InCombat() then
-                UpdateButtonVisibility(true)
-            end
+            ScheduleBagRefresh(0)
         end)
-        Print("Loaded (Classic 1.15.8).")
-        C_Timer.After(1.0, function()
-            booting = false
-            if not paused and not inBattleground and not InCombat() then
-                UpdateButtonVisibility(true)
-            end
-        end)
+        Print("Loaded.")
     elseif event == "PLAYER_ENTERING_WORLD" then
         booting = true
         -- notes: Fires during zoning/instance changes; used to update BG state on transitions.
         SetBattlegroundState(IsInBattleground())
+        C_Timer.After(0.75, function()
+            booting = false
+            ScheduleBagRefresh(0)
+        end)
 
     elseif event == "PLAYER_REGEN_DISABLED" then
         -- notes: Entering combat.
@@ -631,10 +905,20 @@ frame:SetScript("OnEvent", function(_, event)
         -- notes: Persist popup position at logout (best-effort; guarded inside function).
         SavePopupButtonPosition()
 
-    elseif event == "BAG_UPDATE" then
+    elseif event == "BAG_UPDATE_DELAYED" then
         -- notes: Updates button visibility when bags change (only when safe/active).
-        if not deleting and not paused and not inBattleground and not InCombat() then
+        if not paused and not inBattleground and not InCombat() then
             UpdateButtonVisibility(true)
+        RefreshShardUI()
+        -- One-shot shard deletion chat print (sync to bag updates)
+        if pendingShardDeletePrint then
+            local remaining = CountSoulShards()
+            Print(("Deleted %s. Remaining Soul Shards: %d"):format(pendingShardDeleteLink or "Soul Shard", remaining))
+            pendingShardDeletePrint = nil
+            pendingShardDeleteLink = nil
+            pendingShardDeleteAt = nil
+        end
+
         end
     end
 end)
