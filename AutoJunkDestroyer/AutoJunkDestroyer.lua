@@ -118,7 +118,6 @@ end
 local DEFAULT_BAG_USAGE_THRESHOLD = 0.90
 
 -- Soul Shard support (Warlock)
-local SOUL_SHARD_ITEM_ID = 6265
 
 -------------------------------------------------
 -- SavedVariables / Settings
@@ -490,14 +489,13 @@ local icon = LibStub("LibDBIcon-1.0")
 local LDB  = LibStub("LibDataBroker-1.1")
 
 
--- Forward declarations for Soul Shard popup (must exist before minimap OnClick handler)
-local shardFrame, shardButton
+-- Forward declarations for Soul Shard helpers (must exist before minimap OnClick handler)
+local CountSoulShards
 local CreateShardButtonFrame
 local UpdateShardButtonText
-
 local RefreshShardUI
+local shardFrame, shardButton
 
--- One-shot chat print after shard deletion (waits for BAG_UPDATE_DELAYED)
 local pendingShardDeletePrint
 local pendingShardDeleteLink
 local pendingShardDeleteAt
@@ -510,8 +508,13 @@ type = "data source",
 
     OnClick = function(_, mouseButton)
         -- notes: Minimap icon click toggles the popup delete button (when addon is active).
--- Right-click: toggle Soul Shard delete popup
+-- Right-click: toggle Soul Shard delete button (only if shards exist)
 if mouseButton == "RightButton" then
+    if CountSoulShards() == 0 then
+        Print("No Soul Shards to delete.")
+        return
+    end
+
     CreateShardButtonFrame()
     if shardFrame:IsShown() then
         shardFrame:Hide()
@@ -722,9 +725,17 @@ frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:RegisterEvent("PLAYER_LOGOUT")
 
 -------------------------------------------------
--- Soul Shard Helpers
+-- Soul Shard Helpers (Warlock)
+--   - Right-click minimap icon toggles a movable button
+--   - Button only appears if shards exist
+--   - One click = delete one shard (Blizzard-safe)
+--   - Chat output + remaining count synced to BAG_UPDATE_DELAYED
 -------------------------------------------------
-local function CountSoulShards()
+
+-- Soul Shard item ID (Classic)
+local SOUL_SHARD_ITEM_ID = 6265
+
+CountSoulShards = function()
     local total = 0
     for bag = 0, NUM_BAG_SLOTS do
         local slots = C_Container.GetContainerNumSlots(bag)
@@ -775,7 +786,7 @@ local function DeleteSoulShardOnce()
         return false
     end
 
-    local link = info and info.hyperlink or "Soul Shard"
+    local link = (info and info.hyperlink) or "Soul Shard"
 
     C_Container.PickupContainerItem(bag, slot)
     if not CursorHasItem() then
@@ -785,12 +796,12 @@ local function DeleteSoulShardOnce()
 
     DeleteCursorItem()
 
-    -- Defer chat output until BAG_UPDATE_DELAYED so the count matches the button (and actual bags).
+    -- Defer chat output until BAG_UPDATE_DELAYED so the count matches the button.
     pendingShardDeletePrint = true
     pendingShardDeleteLink = link
     pendingShardDeleteAt = GetTime()
 
-    -- Trigger normal refresh path (same as grey delete)
+    -- Mirror grey-delete behavior: trigger the normal bag refresh path.
     if ScheduleBagRefresh then
         ScheduleBagRefresh()
     end
@@ -803,13 +814,12 @@ local function DeleteSoulShardOnce()
             pendingShardDeletePrint = nil
             pendingShardDeleteLink = nil
             pendingShardDeleteAt = nil
-            RefreshShardUI()
+            if RefreshShardUI then RefreshShardUI() end
         end
     end)
 
     return true
 end
-
 
 UpdateShardButtonText = function()
     if not shardButton then return end
@@ -818,14 +828,15 @@ UpdateShardButtonText = function()
     shardButton:SetEnabled(n > 0 and not InCombatLockdown() and not IsInBattleground() and not CursorHasItem())
 end
 
-
 RefreshShardUI = function()
-    if shardFrame and shardFrame:IsShown() then
-        UpdateShardButtonText()
+    if not shardFrame or not shardFrame:IsShown() then return end
+    local n = CountSoulShards()
+    if n == 0 then
+        shardFrame:Hide()
+        return
     end
+    UpdateShardButtonText()
 end
-
-
 
 CreateShardButtonFrame = function()
     if shardFrame then return end
@@ -844,6 +855,7 @@ CreateShardButtonFrame = function()
     end)
     shardFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        EnsureSV()
         local point, _, _, x, y = self:GetPoint(1)
         AutoJunkDestroyerDB.settings.shardButtonPos = AutoJunkDestroyerDB.settings.shardButtonPos or {}
         AutoJunkDestroyerDB.settings.shardButtonPos.point = point or "CENTER"
@@ -852,13 +864,13 @@ CreateShardButtonFrame = function()
     end)
 
     shardButton = shardFrame
-    shardButton:SetText("Delete Soul Shards")
     shardButton:SetScript("OnClick", function()
         DeleteSoulShardOnce()
     end)
 
     -- Restore saved position
-    local pos = AutoJunkDestroyerDB and AutoJunkDestroyerDB.settings and AutoJunkDestroyerDB.settings.shardButtonPos
+    EnsureSV()
+    local pos = AutoJunkDestroyerDB.settings and AutoJunkDestroyerDB.settings.shardButtonPos
     shardFrame:ClearAllPoints()
     if pos and pos.point then
         shardFrame:SetPoint(pos.point, UIParent, pos.point, pos.x or 0, pos.y or 0)
@@ -869,7 +881,6 @@ CreateShardButtonFrame = function()
     shardFrame:Hide()
     UpdateShardButtonText()
 end
-
 
 frame:SetScript("OnEvent", function(_, event)
     -- notes: Central event dispatcher; keeps addon state in sync with login, zoning, combat, and bag changes.

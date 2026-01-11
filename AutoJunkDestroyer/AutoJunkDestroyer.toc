@@ -3,7 +3,7 @@
 ## Title: AutoJunkDestroyer
 ## Author: Milestorme
 ## Notes: Destroy junk items when bags are full easily
-## Version: 1.1.1
+## Version: 1.1.2
 Libs/LibStub/LibStub.lua
 Libs/AceDB-3.0/AceDB-3.0.lua
 Libs/LibDataBroker-1.1/LibDataBroker-1.1.lua
