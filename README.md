@@ -1,105 +1,42 @@
 # AutoJunkDestroyer
 
-**AutoJunkDestroyer** is a lightweight World of Warcraft addon that helps you safely and efficiently delete grey (poor-quality) items when your bags are nearly full — without interfering with combat, battlegrounds, or normal gameplay.
+AutoJunkDestroyer adds a simple button to delete grey (junk) items on demand, plus optional Soul Shard cleanup.
 
-Designed for **WoW Classic Era**, with robust handling for combat lockdowns, zoning, reloads, and edge-case Blizzard API behavior.
+## Install
+1. Download the zip and extract it.
+2. Put the **AutoJunkDestroyer** folder into:
+   - Retail: `World of Warcraft/_retail_/Interface/AddOns/`
+   - Classic Era: `World of Warcraft/_classic_/Interface/AddOns/`
+   - TBC Anniversary / Classic versions: their respective `Interface/AddOns/` folder
+3. Reload the UI (`/reload`).
 
----
+## How to use
+- Click **Delete Grey Items** to delete junk items.
+  - If there are many, it may ask you to click again to continue.
+- Minimap icon tooltip shows controls.
 
-## ✨ Features
+## Slash commands
+- `/ajd threshold <percent>` — set bag fullness threshold (e.g. `90` or `0.90`).
+- `/ajd minimap hide|show|lock|unlock|reset`
+- `/ajd pause` / `/ajd resume`
 
-- 🧹 **Automatic grey item popup**
-  - Appears when bag usage reaches **90% or higher**
-  - Only shows if grey items are present
-  - Stays visible while greys remain (even if usage drops slightly)
+## Localization
+This addon is fully localized for these client locales:
+- enUS, deDE, frFR, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW
 
-- 🖱 **Manual popup control**
-  - Manually show or hide the popup at any time
-  - When manually shown, the popup stays visible until **all grey items are deleted**
-  - Manual hide is temporary — auto popup will return later when conditions are met
+If you spot any awkward wording, ping Milestorme with the suggested phrasing and locale.
 
-- ⚔ **Combat-safe**
-  - Popup automatically hides when entering combat
-  - Reappears after combat ends *only if* bag conditions are still met
-  - No protected action errors or taint issues
+## Libraries
+Bundled (embedded) libraries:
+- Ace3 (AceLocale-3.0, AceDB-3.0)
+- LibDataBroker-1.1
+- LibDBIcon-1.0
 
-- 🏟 **Battleground & instance safe**
-  - Fully disabled while inside battlegrounds
-  - Handles instance/raid zoning correctly
-  - No false popups on zone transitions or loading screens
-
-- 🔁 **Reload & zone-change resilient**
-  - Prevents false popups caused by transient bag API data
-  - Delayed checks ensure bag data is stable before triggering
-
-- 💾 **Persistent UI state**
-  - Popup position is saved across reloads and logouts
-  - Manual popup state is remembered correctly
-  - Minimap button position is saved
-
-- 🧠 **Smart suppression logic**
-  - If you manually hide the popup while above 90%, it stays hidden
-  - Auto popup re-enables automatically once bag usage drops below 90% and later reaches it again
-
----
-
-## 🔮 Soul Shard Deletion (Warlock Utility)
-
-AutoJunkDestroyer also includes an **optional Soul Shard cleanup tool** for Warlocks.
-
-- 🟣 **Right-click the minimap icon** to toggle a movable button:
-  - **“Delete Soul Shards (N)”**
-- Deletes **one Soul Shard per click** (item ID 6265)
-- **Fully Blizzard-safe**
-  - No auto-delete loops
-  - No protected actions
-  - One click = one delete
-- ⚔ **Combat / battleground safe**
-  - Disabled during combat or in battlegrounds
-- 💬 **Clear chat feedback**
-  - Prints confirmation after each delete
-  - Shows **remaining Soul Shard count**, synced with bag updates
-- 🧲 **Movable & persistent**
-  - Drag to reposition
-  - Position is saved across reloads and logouts
-- 🔁 **Live updates**
-  - Button count updates immediately as shards are deleted
-
-> This feature is completely independent of grey item deletion and never triggers automatically.
-
----
-
-## 🔧 Commands
-
-| Command | Description |
-|------|------------|
-| `/ajd` | Toggle the popup manually |
-| `/ajd pause` | Pause the addon |
-| `/ajd resume` | Resume the addon |
-| `/ajd bags` | Print current bag usage percentage |
-| `/ajd minimap hide` | Hide minimap button |
-| `/ajd minimap show` | Show minimap button |
-
----
-
-## 🖱 Popup Behavior Summary
-
-| Situation | Popup Behavior |
-|---------|----------------|
-| Bags < 90% | Hidden |
-| Bags ≥ 90% + greys | Auto shows |
-| Delete 1 grey | Stays visible |
-| All greys gone | Hides |
-| Enter combat | Hides |
-| Leave combat (still ≥ 90%) | Reappears |
-| Manual hide | Suppressed until conditions reset |
-| Reload / zone change | No false popup |
-
----
-
-## 📦 Installation
-
-https://www.curseforge.com/wow/addons/auto-junk-destroyer
-
-
+## CurseForge description snippet
+**Features**
+- One-click junk (grey) deletion button
+- Optional Soul Shard cleanup popup
+- Battleground-safe (auto disables/enables)
+- Minimap icon with lock/hide/reset
+- **Full localization**: enUS, deDE, frFR, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW
 

@@ -58,6 +58,17 @@
 local ADDON_NAME = ...
 local frame = CreateFrame("Frame")
 
+-- Localization (AceLocale-3.0)
+local _AceLocale = LibStub and LibStub("AceLocale-3.0", true)
+local L
+if _AceLocale then
+    L = _AceLocale:GetLocale("AutoJunkDestroyer", true)
+end
+if not L then
+    L = setmetatable({}, { __index = function(t, k) return k end })
+end
+
+
 -- userPaused = what the player chose via /ajd pause
 -- paused = effective pause state (userPaused OR inBattleground)
 local userPaused = false
@@ -78,7 +89,7 @@ local warnedWaitingForCombat = false
 -------------------------------------------------
 local function Print(msg)
     -- notes: Unified chat output helper for consistent addon prefix formatting.
-    DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00AutoJunkDestroyer:|r " .. msg)
+    DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00" .. (L["ADDON_NAME"] or "AutoJunkDestroyer") .. ":|r " .. msg)
 end
 
 local function IsInBattleground()
@@ -123,7 +134,6 @@ local DEFAULT_BAG_USAGE_THRESHOLD = 0.90
 -- SavedVariables / Settings
 -------------------------------------------------
 local function EnsureSV()
-        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
     AutoJunkDestroyerDB = AutoJunkDestroyerDB or {}
     AutoJunkDestroyerDB.settings = AutoJunkDestroyerDB.settings or {}
 
@@ -146,7 +156,6 @@ end
 
 local function GetBagUsageThreshold()
     EnsureSV()
-        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
     local t = AutoJunkDestroyerDB.settings and AutoJunkDestroyerDB.settings.bagUsageThreshold
     if type(t) ~= "number" then
         return DEFAULT_BAG_USAGE_THRESHOLD
@@ -190,7 +199,6 @@ end
 -------------------------------------------------
 -- Button
 -------------------------------------------------
-local EnsureSV
 local SavePopupButtonPosition
 local ApplyPopupButtonPosition
 local ResetPopupButtonPosition
@@ -236,7 +244,6 @@ SavePopupButtonPosition = function()
     if paused or inBattleground or InCombat() then return end
     EnsureSV()
 
-        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
     local bx, by = button:GetCenter()
     local ux, uy = UIParent:GetCenter()
     if not bx or not by or not ux or not uy then return end
@@ -254,7 +261,6 @@ ApplyPopupButtonPosition = function()
     -- notes: Restores the button position from AutoJunkDestroyerDB.popupButtonPos (if present).
     -- notes: Supports both the newer CENTER-relative format and the older absolute TOPLEFT coords.
     EnsureSV()
-        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
     local p = AutoJunkDestroyerDB.popupButtonPos
     if not p then return end
 
@@ -275,7 +281,6 @@ end
 ResetPopupButtonPosition = function()
     -- notes: Clears saved popup position and re-centers the button.
     EnsureSV()
-        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
     AutoJunkDestroyerDB.popupButtonPos = nil
     button:ClearAllPoints()
     button:SetPoint("CENTER")
@@ -288,9 +293,9 @@ end
 local function SetButtonCount(count)
     -- notes: Sets button label; includes remaining grey count when > 0.
     if count and count > 0 then
-        button:SetText("Delete Grey Items (" .. count .. ")")
+        button:SetText(string.format(L["BTN_DELETE_GREY_COUNT"], count))
     else
-        button:SetText("Delete Grey Items")
+        button:SetText(L["BTN_DELETE_GREY"])
     end
 end
 
@@ -362,7 +367,7 @@ local function EnableAddonNow()
     inBattleground = false
     paused = userPaused
 
-    Print("Left battleground — addon enabled.")
+    Print(L["MSG_LEFT_BG_ENABLED"])
     UpdateButtonVisibility(true)
 end
 
@@ -376,7 +381,7 @@ local function DelayedEnableAfterBG()
             pendingEnableAfterCombat = true
             button:Hide()
             if not warnedWaitingForCombat then
-                Print("Left battleground — waiting for combat to end to re-enable.")
+                Print(L["MSG_LEFT_BG_WAIT_COMBAT"])
                 warnedWaitingForCombat = true
             end
             return
@@ -400,7 +405,7 @@ local function SetBattlegroundState(isInBG)
         warnedWaitingForCombat = false
         button:Hide()
         if not wasInBG then
-            Print("Entered battleground — addon disabled.")
+            Print(L["MSG_ENTER_BG_DISABLED"])
         end
     else
         if wasInBG then
@@ -439,7 +444,7 @@ button:SetScript("OnClick", function()
     -- notes: Click handler deletes exactly ONE grey item per click (combat/BG-safe).
     -- notes: Rescans every click so counts stay accurate and avoids stale bag/slot pointers.
     if paused or inBattleground or InCombat() then
-        Print("Cannot delete grey items right now.")
+        Print(L["MSG_CANNOT_DELETE"])
         return
     end
 
@@ -448,7 +453,7 @@ button:SetScript("OnClick", function()
     local count = #greys
 
     if count == 0 then
-        Print("No grey items found.")
+        Print(L["MSG_NO_GREY"])
         SetButtonCount(0)
         UpdateButtonVisibility(true)
         return
@@ -471,9 +476,9 @@ button:SetScript("OnClick", function()
         SetButtonCount(rcount)
 
         if rcount > 0 then
-            Print(rcount .. " grey items remaining. Click again.")
+            Print(string.format(L["MSG_REMAINING"], rcount))
         else
-            Print("All grey items deleted.")
+            Print(L["MSG_ALL_DELETED"])
         end
 
         UpdateButtonText()
@@ -492,7 +497,6 @@ local LDB  = LibStub("LibDataBroker-1.1")
 -- Forward declarations for Soul Shard helpers (must exist before minimap OnClick handler)
 local CountSoulShards
 local CreateShardButtonFrame
-local UpdateShardButtonText
 local RefreshShardUI
 local shardFrame, shardButton
 
@@ -511,7 +515,7 @@ type = "data source",
 -- Right-click: toggle Soul Shard delete button (only if shards exist)
 if mouseButton == "RightButton" then
     if CountSoulShards() == 0 then
-        Print("No Soul Shards to delete.")
+        Print(L["MSG_NO_SHARDS"])
         return
     end
 
@@ -520,34 +524,33 @@ if mouseButton == "RightButton" then
         shardFrame:Hide()
     else
         shardFrame:Show()
-        UpdateShardButtonText()
     end
     return
 end
 
         if paused or inBattleground or InCombat() then
-            Print("Addon is disabled right now (paused / battleground / combat).")
+            Print(L["MSG_DISABLED_RIGHT_NOW"])
             button:Hide()
             return
         end
 
         if button:IsShown() then
             button:Hide()
-            Print("Button hidden via minimap.")
+            Print(L["MSG_BUTTON_HIDDEN_MINIMAP"])
         else
             button:Show()
             UpdateButtonText()
-            Print("Button shown via minimap.")
+            Print(L["MSG_BUTTON_SHOWN_MINIMAP"])
         end
     end,
 
     OnTooltipShow = function(tt)
         -- notes: Tooltip helper for minimap icon; displays quick usage hints.
-        tt:AddLine("AutoJunkDestroyer")
-        tt:AddLine("Left-click: Toggle junk delete button")
-        tt:AddLine("Right-click: Soul Shard delete popup")
-        tt:AddLine("Drag: Move minimap icon (saved via AceDB)")
-        tt:AddLine("/ajd minimap hide|show|lock|unlock|reset")
+        tt:AddLine(L["TOOLTIP_TITLE"])
+        tt:AddLine(L["TOOLTIP_LEFTCLICK"])
+        tt:AddLine(L["TOOLTIP_RIGHTCLICK"])
+        tt:AddLine(L["TOOLTIP_DRAG"])
+        tt:AddLine(L["TOOLTIP_CMD"])
     end,
 })
 
@@ -556,7 +559,7 @@ local function InitAceDB()
     -- notes: This ensures minimap icon position/hide/lock persist reliably.
     local AceDB = LibStub("AceDB-3.0", true)
     if not AceDB then
-        Print("ERROR: AceDB-3.0 not found. Make sure it’s included in Libs and listed in the TOC.")
+        Print(L["ERR_ACEDB_MISSING"])
         return
     end
 
@@ -576,7 +579,7 @@ local function InitAceDB()
     icon:Register("AutoJunkDestroyer", AJD_LDB, db.profile.minimap)
     icon:Refresh("AutoJunkDestroyer", db.profile.minimap)
 
-    Print("Minimap: AceDB enabled (position will save).")
+    Print(L["MSG_MINIMAP_ACEDB_OK"])
 end
 
 -------------------------------------------------
@@ -591,23 +594,22 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     if msg == "pause" then
         userPaused = not userPaused
         paused = userPaused or inBattleground
-        Print(userPaused and "Paused." or "Resumed.")
+        Print(userPaused and L["MSG_PAUSED"] or L["MSG_RESUMED"])
         UpdateButtonVisibility(true)
         return
     end
 
     if msg:match("^threshold") then
         EnsureSV()
-        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
         local arg = msg:match("^threshold%s*(.*)$") or ""
         if arg == "" then
-            Print("Bag threshold is set to " .. tostring(math.floor(GetBagUsageThreshold() * 100 + 0.5)) .. "%.")
+            Print(string.format(L["MSG_THRESHOLD_CURRENT"], math.floor(GetBagUsageThreshold() * 100 + 0.5)))
             return
         end
 
         local v = tonumber(arg)
         if not v then
-            Print("Usage: /ajd threshold 90   (or 0.90)")
+            Print(L["MSG_THRESHOLD_USAGE"])
             return
         end
 
@@ -617,7 +619,7 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
         if v > 0.99 then v = 0.99 end
 
         AutoJunkDestroyerDB.settings.bagUsageThreshold = v
-        Print("Bag threshold set to " .. tostring(math.floor(v * 100 + 0.5)) .. "%.")
+        Print(string.format(L["MSG_THRESHOLD_SET"], math.floor(v * 100 + 0.5)))
         ScheduleBagRefresh(0)
         return
     end
@@ -629,10 +631,9 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
 
         if arg == "reset" then
             ResetPopupButtonPosition()
-            Print("Popup button position reset.")
+            Print(L["MSG_POPUP_RESET"])
         else
             EnsureSV()
-        if shardFrame and shardFrame:IsShown() then UpdateShardButtonText() end
             local p = AutoJunkDestroyerDB.popupButtonPos
             if p then
             if p.point then
@@ -651,7 +652,7 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     if msg:match("^minimap") then
         -- notes: /ajd minimap controls LibDBIcon state (hide/show/lock/unlock/reset/pos).
         if not db then
-            Print("Minimap DB not ready yet.")
+            Print(L["MSG_MINIMAP_DB_NOT_READY"])
             return
         end
 
@@ -661,23 +662,23 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
         if arg == "hide" then
             db.profile.minimap.hide = true
             icon:Hide("AutoJunkDestroyer")
-            Print("Minimap icon hidden.")
+            Print(L["MSG_MINIMAP_ICON_HIDDEN"])
         elseif arg == "show" then
             db.profile.minimap.hide = false
             icon:Show("AutoJunkDestroyer")
-            Print("Minimap icon shown.")
+            Print(L["MSG_MINIMAP_ICON_SHOWN"])
         elseif arg == "lock" then
             db.profile.minimap.lock = true
             icon:Lock("AutoJunkDestroyer")
-            Print("Minimap icon locked.")
+            Print(L["MSG_MINIMAP_LOCKED"])
         elseif arg == "unlock" then
             db.profile.minimap.lock = false
             icon:Unlock("AutoJunkDestroyer")
-            Print("Minimap icon unlocked.")
+            Print(L["MSG_MINIMAP_UNLOCKED"])
         elseif arg == "reset" then
             db.profile.minimap.minimapPos = 220
             icon:Refresh("AutoJunkDestroyer", db.profile.minimap)
-            Print("Minimap icon position reset.")
+            Print(L["MSG_MINIMAP_RESET"])
         elseif arg == "pos" or arg == "" then
             Print("MinimapPos (saved): " .. tostring(db.profile.minimap.minimapPos) ..
                   " | hide=" .. tostring(db.profile.minimap.hide) ..
@@ -691,18 +692,18 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     if msg == "toggle" then
         -- notes: /ajd toggle shows/hides the popup delete button (only when addon is active).
         if paused or inBattleground or InCombat() then
-            Print("Addon is disabled right now (paused / battleground / combat).")
+            Print(L["MSG_DISABLED_RIGHT_NOW"])
             button:Hide()
             return
         end
 
         if button:IsShown() then
             button:Hide()
-            Print("Button hidden.")
+            Print(L["MSG_BUTTON_HIDDEN_MINIMAP"])
         else
             button:Show()
             UpdateButtonText()
-            Print("Button shown.")
+            Print(L["MSG_BUTTON_SHOWN_MINIMAP"])
         end
         return
     end
@@ -820,22 +821,17 @@ local function DeleteSoulShardOnce()
 
     return true
 end
-
-UpdateShardButtonText = function()
+RefreshShardUI = function()
     if not shardButton then return end
     local n = CountSoulShards()
     shardButton:SetText(("Delete Soul Shards (%d)"):format(n))
     shardButton:SetEnabled(n > 0 and not InCombatLockdown() and not IsInBattleground() and not CursorHasItem())
-end
 
-RefreshShardUI = function()
-    if not shardFrame or not shardFrame:IsShown() then return end
-    local n = CountSoulShards()
-    if n == 0 then
-        shardFrame:Hide()
-        return
+    if shardFrame and shardFrame:IsShown() then
+        if n == 0 then
+            shardFrame:Hide()
+        end
     end
-    UpdateShardButtonText()
 end
 
 CreateShardButtonFrame = function()
@@ -879,7 +875,6 @@ CreateShardButtonFrame = function()
     end
 
     shardFrame:Hide()
-    UpdateShardButtonText()
 end
 
 frame:SetScript("OnEvent", function(_, event)
@@ -920,7 +915,10 @@ frame:SetScript("OnEvent", function(_, event)
         -- notes: Updates button visibility when bags change (only when safe/active).
         if not paused and not inBattleground and not InCombat() then
             UpdateButtonVisibility(true)
+        end
+
         RefreshShardUI()
+
         -- One-shot shard deletion chat print (sync to bag updates)
         if pendingShardDeletePrint then
             local remaining = CountSoulShards()
@@ -928,8 +926,6 @@ frame:SetScript("OnEvent", function(_, event)
             pendingShardDeletePrint = nil
             pendingShardDeleteLink = nil
             pendingShardDeleteAt = nil
-        end
-
         end
     end
 end)
