@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.7
+- Added Icon and updated toc
+
 ## 1.1.6
 - Version bump for CurseForge release
 - Added TOC locale metadata (`X-Localizations`) for CF auto-detection
