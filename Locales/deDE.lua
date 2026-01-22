@@ -35,3 +35,17 @@ L["TOOLTIP_DRAG"] = "Ziehen: Minikarte bewegen"
 L["TOOLTIP_CMD"] = "/ajd minimap hide|show|lock|unlock|reset"
 L["ERR_ACEDB_MISSING"] = "FEHLER: AceDB-3.0 fehlt. Bitte in Libs einbinden und im TOC listen."
 L["MSG_MINIMAP_ACEDB_OK"] = "Minikarte: AceDB aktiv (Position wird gespeichert)."
+
+L["CANNOT_DELETE_IN_COMBAT"] = "Gegenstände können im Kampf nicht gelöscht werden."
+L["CANNOT_DELETE_IN_BATTLEGROUNDS"] = "In Schlachtfeldern können keine Gegenstände gelöscht werden."
+L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"] = "Du hast einen Gegenstand am Cursor. Bitte entferne ihn zuerst."
+L["NO_SOUL_SHARDS_FOUND"] = "Keine Seelensplitter gefunden."
+L["FAILED_PICKUP_SOUL_SHARD"] = "Seelensplitter konnte nicht zum Löschen aufgenommen werden."
+L["DELETED_ITEM_REMAINING_SHARDS"] = "%s gelöscht. Verbleibende Seelensplitter: %d"
+L["DELETE_SOUL_SHARDS_BUTTON"] = "Seelensplitter löschen (%d)"
+L["SOUL_SHARD"] = "Seelensplitter"
+
+L["MSG_LOADED"] = "Geladen."
+
+L["CFF00FF00_DC869E"] = "|cff00ff00"
+L["R_7FC9D5"] = ":|r "

@@ -46,3 +46,17 @@ L["TOOLTIP_CMD"] = "/ajd minimap hide|show|lock|unlock|reset"
 
 L["ERR_ACEDB_MISSING"] = "ERROR: AceDB-3.0 not found. Make sure it’s included in Libs and listed in the TOC."
 L["MSG_MINIMAP_ACEDB_OK"] = "Minimap: AceDB enabled (position will save)."
+
+L["CANNOT_DELETE_IN_COMBAT"] = "Cannot delete items while in combat."
+L["CANNOT_DELETE_IN_BATTLEGROUNDS"] = "Cannot delete items in battlegrounds."
+L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"] = "Your cursor is holding an item. Please clear it first."
+L["NO_SOUL_SHARDS_FOUND"] = "No Soul Shards found."
+L["FAILED_PICKUP_SOUL_SHARD"] = "Failed to pick up Soul Shard for deletion."
+L["DELETED_ITEM_REMAINING_SHARDS"] = "Deleted %s. Remaining Soul Shards: %d"
+L["DELETE_SOUL_SHARDS_BUTTON"] = "Delete Soul Shards (%d)"
+L["SOUL_SHARD"] = "Soul Shard"
+
+L["MSG_LOADED"] = "Loaded."
+
+L["CFF00FF00_DC869E"] = "|cff00ff00"
+L["R_7FC9D5"] = ":|r "

@@ -89,7 +89,7 @@ local warnedWaitingForCombat = false
 -------------------------------------------------
 local function Print(msg)
     -- notes: Unified chat output helper for consistent addon prefix formatting.
-    DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00" .. (L["ADDON_NAME"] or "AutoJunkDestroyer") .. ":|r " .. msg)
+    DEFAULT_CHAT_FRAME:AddMessage(L["CFF00FF00_DC869E"] .. (L["ADDON_NAME"] or L["ADDON_NAME"]) .. L["R_7FC9D5"] .. msg)
 end
 
 local function IsInBattleground()
@@ -523,6 +523,7 @@ if mouseButton == "RightButton" then
     if shardFrame:IsShown() then
         shardFrame:Hide()
     else
+        RefreshShardUI()
         shardFrame:Show()
     end
     return
@@ -563,6 +564,25 @@ local function InitAceDB()
         return
     end
 
+    -- IMPORTANT:
+    -- AutoJunkDestroyer uses AutoJunkDestroyerDB for its own SavedVariables (settings, popup positions, etc.).
+    -- Using the same table for AceDB causes structure collisions and can crash on PLAYER_LOGOUT when AceDB tries
+    -- to clean up "profile" sections (e.g., calling next() on boolean values).
+    --
+    -- So we keep our main SavedVariables table as-is and give AceDB its own dedicated SavedVariables table.
+    -- This fixes the logout error WITHOUT modifying AceDB itself.
+    if AutoJunkDestroyerIconDB ~= nil and type(AutoJunkDestroyerIconDB) ~= "table" then
+        AutoJunkDestroyerIconDB = nil
+    end
+    AutoJunkDestroyerIconDB = AutoJunkDestroyerIconDB or {}
+
+    -- One-time migration: if a previous version stored minimap data under AutoJunkDestroyerDB.profile.minimap,
+    -- carry it over to the new AceDB store so the icon position/hide/lock are preserved.
+    local migratedMinimap
+    if type(AutoJunkDestroyerDB) == "table" and type(AutoJunkDestroyerDB.profile) == "table" and type(AutoJunkDestroyerDB.profile.minimap) == "table" then
+        migratedMinimap = AutoJunkDestroyerDB.profile.minimap
+    end
+
     local defaults = {
         profile = {
             minimap = {
@@ -573,7 +593,13 @@ local function InitAceDB()
         },
     }
 
-    db = AceDB:New("AutoJunkDestroyerDB", defaults, true)
+    db = AceDB:New("AutoJunkDestroyerIconDB", defaults, true)
+
+    if migratedMinimap and type(db.profile) == "table" and type(db.profile.minimap) == "table" then
+        for k, v in pairs(migratedMinimap) do
+            db.profile.minimap[k] = v
+        end
+    end
 
     -- Register LibDBIcon against db.profile.minimap (this is the standard working pattern)
     icon:Register("AutoJunkDestroyer", AJD_LDB, db.profile.minimap)
@@ -769,29 +795,29 @@ end
 
 local function DeleteSoulShardOnce()
     if InCombatLockdown() then
-        Print("Cannot delete items while in combat.")
+        Print(L["CANNOT_DELETE_IN_COMBAT"])
         return false
     end
     if IsInBattleground() then
-        Print("Cannot delete items in battlegrounds.")
+        Print(L["CANNOT_DELETE_IN_BATTLEGROUNDS"])
         return false
     end
     if CursorHasItem() then
-        Print("Your cursor is holding an item. Please clear it first.")
+        Print(L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"])
         return false
     end
 
     local bag, slot, info = FindSoulShardSlot()
     if not bag then
-        Print("No Soul Shards found.")
+        Print(L["NO_SOUL_SHARDS_FOUND"])
         return false
     end
 
-    local link = (info and info.hyperlink) or "Soul Shard"
+    local link = (info and info.hyperlink) or L["SOUL_SHARD"]
 
     C_Container.PickupContainerItem(bag, slot)
     if not CursorHasItem() then
-        Print("Failed to pick up Soul Shard for deletion.")
+        Print(L["FAILED_PICKUP_SOUL_SHARD"])
         return false
     end
 
@@ -811,7 +837,7 @@ local function DeleteSoulShardOnce()
     C_Timer.After(0.75, function()
         if pendingShardDeletePrint and pendingShardDeleteAt and (GetTime() - pendingShardDeleteAt) >= 0.70 then
             local remaining = CountSoulShards()
-            Print(("Deleted %s. Remaining Soul Shards: %d"):format(pendingShardDeleteLink or "Soul Shard", remaining))
+            Print((L["DELETED_ITEM_REMAINING_SHARDS"]):format(pendingShardDeleteLink or L["SOUL_SHARD"], remaining))
             pendingShardDeletePrint = nil
             pendingShardDeleteLink = nil
             pendingShardDeleteAt = nil
@@ -824,7 +850,7 @@ end
 RefreshShardUI = function()
     if not shardButton then return end
     local n = CountSoulShards()
-    shardButton:SetText(("Delete Soul Shards (%d)"):format(n))
+    shardButton:SetText((L["DELETE_SOUL_SHARDS_BUTTON"]):format(n))
     shardButton:SetEnabled(n > 0 and not InCombatLockdown() and not IsInBattleground() and not CursorHasItem())
 
     if shardFrame and shardFrame:IsShown() then
@@ -874,6 +900,8 @@ CreateShardButtonFrame = function()
         shardFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
 
+        RefreshShardUI()
+
     shardFrame:Hide()
 end
 
@@ -889,7 +917,7 @@ frame:SetScript("OnEvent", function(_, event)
             booting = false
             ScheduleBagRefresh(0)
         end)
-        Print("Loaded.")
+        Print(L["MSG_LOADED"])
     elseif event == "PLAYER_ENTERING_WORLD" then
         booting = true
         -- notes: Fires during zoning/instance changes; used to update BG state on transitions.
@@ -922,7 +950,7 @@ frame:SetScript("OnEvent", function(_, event)
         -- One-shot shard deletion chat print (sync to bag updates)
         if pendingShardDeletePrint then
             local remaining = CountSoulShards()
-            Print(("Deleted %s. Remaining Soul Shards: %d"):format(pendingShardDeleteLink or "Soul Shard", remaining))
+            Print((L["DELETED_ITEM_REMAINING_SHARDS"]):format(pendingShardDeleteLink or L["SOUL_SHARD"], remaining))
             pendingShardDeletePrint = nil
             pendingShardDeleteLink = nil
             pendingShardDeleteAt = nil

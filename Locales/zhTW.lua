@@ -35,3 +35,17 @@ L["TOOLTIP_DRAG"] = "拖曳：移動圖示"
 L["TOOLTIP_CMD"] = "/ajd minimap hide|show|lock|unlock|reset"
 L["ERR_ACEDB_MISSING"] = "錯誤：找不到 AceDB-3.0。請放入 Libs 並在 TOC 中列出。"
 L["MSG_MINIMAP_ACEDB_OK"] = "小地圖：AceDB 已啟用（位置將保存）。"
+
+L["CANNOT_DELETE_IN_COMBAT"] = "戰鬥中無法刪除物品。"
+L["CANNOT_DELETE_IN_BATTLEGROUNDS"] = "戰場中無法刪除物品。"
+L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"] = "你的游標正拿著物品。請先清空。"
+L["NO_SOUL_SHARDS_FOUND"] = "未找到靈魂碎片。"
+L["FAILED_PICKUP_SOUL_SHARD"] = "無法拾取靈魂碎片以刪除。"
+L["DELETED_ITEM_REMAINING_SHARDS"] = "已刪除：%s。剩餘靈魂碎片：%d"
+L["DELETE_SOUL_SHARDS_BUTTON"] = "刪除靈魂碎片（%d）"
+L["SOUL_SHARD"] = "靈魂碎片"
+
+L["MSG_LOADED"] = "已載入。"
+
+L["CFF00FF00_DC869E"] = "|cff00ff00"
+L["R_7FC9D5"] = ":|r "

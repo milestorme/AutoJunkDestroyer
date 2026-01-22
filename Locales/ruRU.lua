@@ -35,3 +35,17 @@ L["TOOLTIP_DRAG"] = "Перетащить: двигать значок"
 L["TOOLTIP_CMD"] = "/ajd minimap hide|show|lock|unlock|reset"
 L["ERR_ACEDB_MISSING"] = "ОШИБКА: AceDB-3.0 не найден. Добавьте в Libs и в TOC."
 L["MSG_MINIMAP_ACEDB_OK"] = "Миникарта: AceDB включён (позиция сохранится)."
+
+L["CANNOT_DELETE_IN_COMBAT"] = "Нельзя удалять предметы во время боя."
+L["CANNOT_DELETE_IN_BATTLEGROUNDS"] = "Нельзя удалять предметы на поле боя."
+L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"] = "На курсоре предмет. Сначала уберите его."
+L["NO_SOUL_SHARDS_FOUND"] = "Осколки души не найдены."
+L["FAILED_PICKUP_SOUL_SHARD"] = "Не удалось взять осколок души для удаления."
+L["DELETED_ITEM_REMAINING_SHARDS"] = "Удалено: %s. Осталось осколков души: %d"
+L["DELETE_SOUL_SHARDS_BUTTON"] = "Удалить осколки души (%d)"
+L["SOUL_SHARD"] = "Осколок души"
+
+L["MSG_LOADED"] = "Загружено."
+
+L["CFF00FF00_DC869E"] = "|cff00ff00"
+L["R_7FC9D5"] = ":|r "

@@ -35,3 +35,17 @@ L["TOOLTIP_DRAG"] = "Trascina: muovi icona"
 L["TOOLTIP_CMD"] = "/ajd minimap hide|show|lock|unlock|reset"
 L["ERR_ACEDB_MISSING"] = "ERRORE: AceDB-3.0 mancante. Includilo in Libs e nel TOC."
 L["MSG_MINIMAP_ACEDB_OK"] = "Minimappa: AceDB attivo (posizione salvata)."
+
+L["CANNOT_DELETE_IN_COMBAT"] = "Impossibile eliminare oggetti durante il combattimento."
+L["CANNOT_DELETE_IN_BATTLEGROUNDS"] = "Impossibile eliminare oggetti nei campi di battaglia."
+L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"] = "Il cursore sta tenendo un oggetto. Liberalo prima."
+L["NO_SOUL_SHARDS_FOUND"] = "Nessuna Scheggia dell’anima trovata."
+L["FAILED_PICKUP_SOUL_SHARD"] = "Impossibile raccogliere la Scheggia dell’anima per eliminarla."
+L["DELETED_ITEM_REMAINING_SHARDS"] = "%s eliminato. Schegge dell’anima rimanenti: %d"
+L["DELETE_SOUL_SHARDS_BUTTON"] = "Elimina Schegge dell’anima (%d)"
+L["SOUL_SHARD"] = "Scheggia dell’anima"
+
+L["MSG_LOADED"] = "Caricato."
+
+L["CFF00FF00_DC869E"] = "|cff00ff00"
+L["R_7FC9D5"] = ":|r "

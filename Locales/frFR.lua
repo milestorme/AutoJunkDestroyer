@@ -35,3 +35,17 @@ L["TOOLTIP_DRAG"] = "Glisser : déplacer l’icône"
 L["TOOLTIP_CMD"] = "/ajd minimap hide|show|lock|unlock|reset"
 L["ERR_ACEDB_MISSING"] = "ERREUR : AceDB-3.0 introuvable. Incluez-le dans Libs et dans le TOC."
 L["MSG_MINIMAP_ACEDB_OK"] = "Minimap : AceDB actif (position sauvegardée)."
+
+L["CANNOT_DELETE_IN_COMBAT"] = "Impossible de supprimer des objets en combat."
+L["CANNOT_DELETE_IN_BATTLEGROUNDS"] = "Impossible de supprimer des objets en champ de bataille."
+L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"] = "Votre curseur tient un objet. Veuillez d’abord le retirer."
+L["NO_SOUL_SHARDS_FOUND"] = "Aucun fragment d’âme trouvé."
+L["FAILED_PICKUP_SOUL_SHARD"] = "Impossible de ramasser un fragment d’âme pour le supprimer."
+L["DELETED_ITEM_REMAINING_SHARDS"] = "%s supprimé. Fragments d’âme restants : %d"
+L["DELETE_SOUL_SHARDS_BUTTON"] = "Supprimer les fragments d’âme (%d)"
+L["SOUL_SHARD"] = "Fragment d’âme"
+
+L["MSG_LOADED"] = "Chargé."
+
+L["CFF00FF00_DC869E"] = "|cff00ff00"
+L["R_7FC9D5"] = ":|r "

@@ -35,3 +35,17 @@ L["TOOLTIP_DRAG"] = "드래그: 아이콘 이동"
 L["TOOLTIP_CMD"] = "/ajd minimap hide|show|lock|unlock|reset"
 L["ERR_ACEDB_MISSING"] = "오류: AceDB-3.0 없음. Libs에 포함하고 TOC에 추가하세요."
 L["MSG_MINIMAP_ACEDB_OK"] = "미니맵: AceDB 활성 (위치 저장)."
+
+L["CANNOT_DELETE_IN_COMBAT"] = "전투 중에는 아이템을 삭제할 수 없습니다."
+L["CANNOT_DELETE_IN_BATTLEGROUNDS"] = "전장에서는 아이템을 삭제할 수 없습니다."
+L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"] = "커서에 아이템이 있습니다. 먼저 비워주세요."
+L["NO_SOUL_SHARDS_FOUND"] = "영혼의 조각이 없습니다."
+L["FAILED_PICKUP_SOUL_SHARD"] = "삭제를 위해 영혼의 조각을 집지 못했습니다."
+L["DELETED_ITEM_REMAINING_SHARDS"] = "%s 삭제됨. 남은 영혼의 조각: %d"
+L["DELETE_SOUL_SHARDS_BUTTON"] = "영혼의 조각 삭제 (%d)"
+L["SOUL_SHARD"] = "영혼의 조각"
+
+L["MSG_LOADED"] = "로드됨."
+
+L["CFF00FF00_DC869E"] = "|cff00ff00"
+L["R_7FC9D5"] = ":|r "
