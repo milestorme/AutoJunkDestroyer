@@ -576,6 +576,73 @@ local function InitAceDB()
     end
     AutoJunkDestroyerIconDB = AutoJunkDestroyerIconDB or {}
 
+    -- HARDENING: AceDB expects sv.profile to be a table of profileName => table.
+    -- If sv.profile contains non-table values (e.g. _setupComplete=true) AceDB will crash on logout (next(boolean)).
+    local function AJD_SanitizeAceDBSV(sv)
+        if type(sv) ~= "table" then return end
+        if type(sv.profileKeys) ~= "table" then sv.profileKeys = {} end
+        if type(sv.profiles) ~= "table" then sv.profiles = {} end
+        if type(sv.profile) ~= "table" then sv.profile = {} end
+
+        local realmKey = (GetRealmName and GetRealmName()) or ""
+        local playerName = (UnitName and UnitName("player")) or "Player"
+        local charKey = playerName .. " - " .. realmKey
+        local profileName = sv.profileKeys[charKey]
+        if type(profileName) ~= "string" or profileName == "" then
+            -- pick any existing profile name if present, otherwise default to charKey
+            for _, v in pairs(sv.profileKeys) do
+                if type(v) == "string" and v ~= "" then profileName = v break end
+            end
+            profileName = profileName or charKey
+            sv.profileKeys[charKey] = profileName
+        end
+
+        -- Decide whether sv.profile is already a map of tables. In a valid map, ALL values are tables.
+        local allTables = true
+        for _, v in pairs(sv.profile) do
+            if type(v) ~= "table" then allTables = false break end
+        end
+
+        if not allTables then
+            -- sv.profile is a flat profile table (or mixed garbage). Wrap it under the active profile name.
+            local flat = sv.profile
+            sv.profile = {}
+            sv.profile[profileName] = (type(flat) == "table") and flat or {}
+        else
+            if type(sv.profile[profileName]) ~= "table" then
+                sv.profile[profileName] = {}
+            end
+        end
+
+        -- Final guard: ensure every entry in sv.profile is a table.
+        for k, v in pairs(sv.profile) do
+            if type(v) ~= "table" then sv.profile[k] = nil end
+        end
+    end
+
+    -- Sanitize the SV table BEFORE creating the db.
+    AJD_SanitizeAceDBSV(AutoJunkDestroyerIconDB)
+
+    -- Install a pre-logout guard by wrapping AceDB.frame OnEvent so we sanitize BEFORE AceDB cleans up.
+    if not AceDB.__AJD_PreLogoutWrapped and AceDB.frame and AceDB.frame.GetScript and AceDB.frame.SetScript then
+        local frame = AceDB.frame
+        local orig = frame:GetScript("OnEvent")
+        frame:SetScript("OnEvent", function(self, event, ...)
+            if event == "PLAYER_LOGOUT" then
+                -- sanitize our own store by name (covers cases where db_registry is missing/corrupted)
+                AJD_SanitizeAceDBSV(_G.AutoJunkDestroyerIconDB)
+                -- sanitize every AceDB-registered database sv, BEFORE AceDB cleanup runs
+                for adb in pairs(AceDB.db_registry or {}) do
+                    local svt = rawget(adb, "sv")
+                    AJD_SanitizeAceDBSV(svt)
+                end
+            end
+            if orig then return orig(self, event, ...) end
+        end)
+        AceDB.__AJD_PreLogoutWrapped = true
+    end
+
+
     -- One-time migration: if a previous version stored minimap data under AutoJunkDestroyerDB.profile.minimap,
     -- carry it over to the new AceDB store so the icon position/hide/lock are preserved.
     local migratedMinimap
@@ -594,6 +661,34 @@ local function InitAceDB()
     }
 
     db = AceDB:New("AutoJunkDestroyerIconDB", defaults, true)
+
+	-- One-time SV cleanup: early broken builds stored arbitrary keys directly under sv.profile (flat table)
+	-- which then got wrapped under the active profile. That leftover junk is not used by LibDBIcon and can
+	-- re-corrupt the structure if other code merges tables later. We keep ONLY 'minimap' under the active
+	-- profile, and back up any legacy keys once.
+	if type(_G.AutoJunkDestroyerIconDB) == "table" and not _G.AutoJunkDestroyerIconDB.__AJD_SV_Migrated7 then
+		local sv = _G.AutoJunkDestroyerIconDB
+		local realmKey = (GetRealmName and GetRealmName()) or ""
+		local playerName = (UnitName and UnitName("player")) or "Player"
+		local charKey = playerName .. " - " .. realmKey
+		local profileName = (type(sv.profileKeys) == "table") and sv.profileKeys[charKey] or nil
+		if type(profileName) ~= "string" or profileName == "" then profileName = charKey end
+		if type(sv.profile) == "table" and type(sv.profile[profileName]) == "table" then
+			local p = sv.profile[profileName]
+			local backup = nil
+			for k, v in pairs(p) do
+				if k ~= "minimap" then
+					backup = backup or {}
+					backup[k] = v
+					p[k] = nil
+				end
+			end
+			if backup then
+				sv.__AJD_SV_LegacyBackup7 = backup
+			end
+		end
+		sv.__AJD_SV_Migrated7 = true
+	end
 
     if migratedMinimap and type(db.profile) == "table" and type(db.profile.minimap) == "table" then
         for k, v in pairs(migratedMinimap) do
