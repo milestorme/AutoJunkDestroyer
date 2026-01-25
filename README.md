@@ -3,7 +3,7 @@
 AutoJunkDestroyer adds a simple button to delete grey (junk) items on demand, plus optional Soul Shard cleanup.
 
 ## Install
-1. Download the zip and extract it.
+1. Download the zip from [curseforge](https://www.curseforge.com/wow/addons/auto-junk-destroyer) and extract it.
 2. Put the **AutoJunkDestroyer** folder into:
    - Retail: `World of Warcraft/_retail_/Interface/AddOns/`
    - Classic Era: `World of Warcraft/_classic_/Interface/AddOns/`
