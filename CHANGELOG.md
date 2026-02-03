@@ -1,6 +1,10 @@
 # Changelog
 
 
+## 1.1.10
+### Fixed
+- Consolidated SavedVariables initialization so shard button defaults are always set alongside the bag threshold.
+
 ## 1.1.9
 ### AceDB SavedVariables Hardening & Migration Fix
 

@@ -3,7 +3,7 @@
 -- Author: Milestorme
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
--- Version: Classic 1.15.8
+-- Version: 1.1.10
 -------------------------------------------------
 -- FUNCTION INDEX
 -------------------------------------------------
