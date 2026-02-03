@@ -3,7 +3,7 @@
 -- Author: Milestorme
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
--- Version: Classic 1.15.8
+-- Version: 1.1.10
 -------------------------------------------------
 -- FUNCTION INDEX
 -------------------------------------------------
@@ -147,10 +147,9 @@ local function EnsureSV()
     if t < 0.50 then t = 0.50 end
     if t > 0.99 then t = 0.99 end
     AutoJunkDestroyerDB.settings.bagUsageThreshold = t
-AutoJunkDestroyerDB.settings.shardButtonPos = AutoJunkDestroyerDB.settings.shardButtonPos or { point = "CENTER", x = 0, y = 0 }
-AutoJunkDestroyerDB.settings.shardButtonVisible = (AutoJunkDestroyerDB.settings.shardButtonVisible ~= false)
-
-
+    AutoJunkDestroyerDB.settings.shardButtonPos = AutoJunkDestroyerDB.settings.shardButtonPos
+        or { point = "CENTER", x = 0, y = 0 }
+    AutoJunkDestroyerDB.settings.shardButtonVisible = (AutoJunkDestroyerDB.settings.shardButtonVisible ~= false)
 end
 
 
@@ -228,14 +227,6 @@ button:SetClampedToScreen(true)
 -- Popup Button Position Persistence (SavedVariables)
 -- Saved to AutoJunkDestroyerDB.popupButtonPos so it will appear on disk.
 -------------------------------------------------
-EnsureSV = function()
-    -- notes: Ensures SavedVariables table exists (created lazily to avoid nil access).
-    AutoJunkDestroyerDB = AutoJunkDestroyerDB or {}
-    AutoJunkDestroyerDB.settings = AutoJunkDestroyerDB.settings or {}
-    if type(AutoJunkDestroyerDB.settings.bagUsageThreshold) ~= "number" then
-        AutoJunkDestroyerDB.settings.bagUsageThreshold = DEFAULT_BAG_USAGE_THRESHOLD
-    end
-end
 
 SavePopupButtonPosition = function()
     -- notes: Saves button position into AutoJunkDestroyerDB.popupButtonPos.
