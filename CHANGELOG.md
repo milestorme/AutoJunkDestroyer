@@ -9,6 +9,7 @@
 
 ### Changed
 - Localized remaining hardcoded slash-command output strings (popup position, minimap position, and help text).
+- Translated newly added slash/minimap/popup status keys into each locale language (instead of English placeholders).
 - Improved AceDB pre-logout wrapping notes/guards for forward compatibility diagnostics.
 - Updated README slash command docs for pause/resume/status behavior.
 
