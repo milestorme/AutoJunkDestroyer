@@ -4,6 +4,7 @@
 ## 1.2.0
 ### Added
 - Added explicit `/ajd resume` and `/ajd status` slash commands.
+- Added localized slash-command aliases for core and minimap subcommands across non-English locales.
 - Added dedicated `Commands.lua` module to separate slash routing from core logic.
 - Added CI workflow and scripts for Lua syntax checks and locale key parity.
 

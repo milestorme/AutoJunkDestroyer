@@ -1,46 +1,99 @@
 -- File: Commands.lua
--- Slash command router module
+-- Slash command router module with localized aliases.
 
 local AJD = _G.AutoJunkDestroyerRuntime or {}
+local L = AJD.L or {}
+
+local function buildAliasMap(raw)
+    local map = {}
+    if type(raw) ~= "string" then
+        return map
+    end
+    for part in raw:gmatch("[^,]+") do
+        local alias = part:match("^%s*(.-)%s*$")
+        if alias and alias ~= "" then
+            map[alias:lower()] = true
+        end
+    end
+    return map
+end
+
+local ALIAS = {
+    pause = buildAliasMap(L["CMD_ALIAS_PAUSE"] or "pause"),
+    resume = buildAliasMap(L["CMD_ALIAS_RESUME"] or "resume"),
+    status = buildAliasMap(L["CMD_ALIAS_STATUS"] or "status"),
+    toggle = buildAliasMap(L["CMD_ALIAS_TOGGLE"] or "toggle"),
+    threshold = buildAliasMap(L["CMD_ALIAS_THRESHOLD"] or "threshold"),
+    button = buildAliasMap(L["CMD_ALIAS_BUTTON"] or "button"),
+    minimap = buildAliasMap(L["CMD_ALIAS_MINIMAP"] or "minimap"),
+    mm_hide = buildAliasMap(L["CMD_ALIAS_MINIMAP_HIDE"] or "hide"),
+    mm_show = buildAliasMap(L["CMD_ALIAS_MINIMAP_SHOW"] or "show"),
+    mm_lock = buildAliasMap(L["CMD_ALIAS_MINIMAP_LOCK"] or "lock"),
+    mm_unlock = buildAliasMap(L["CMD_ALIAS_MINIMAP_UNLOCK"] or "unlock"),
+    mm_reset = buildAliasMap(L["CMD_ALIAS_MINIMAP_RESET"] or "reset"),
+    mm_pos = buildAliasMap(L["CMD_ALIAS_MINIMAP_POS"] or "pos"),
+}
+
+local function isAlias(kind, token)
+    if not token then return false end
+    local set = ALIAS[kind]
+    return set and set[token:lower()]
+end
 
 SLASH_AUTOJUNKDESTROYER1 = "/ajd"
 SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     msg = (msg or ""):lower()
 
-    if msg == "pause" then
+    local cmd, rest = msg:match("^(%S+)%s*(.*)$")
+    if not cmd then
+        AJD.PrintHelp()
+        return
+    end
+
+    if isAlias("pause", cmd) then
         (AJD.Core and AJD.Core.TogglePause and AJD.Core.TogglePause() or AJD.TogglePause())
         return
     end
 
-    if msg == "resume" then
+    if isAlias("resume", cmd) then
         (AJD.Core and AJD.Core.Resume and AJD.Core.Resume() or AJD.Resume())
         return
     end
 
-    if msg == "status" then
+    if isAlias("status", cmd) then
         (AJD.Core and AJD.Core.PrintStatus and AJD.Core.PrintStatus() or AJD.PrintStatus())
         return
     end
 
-    if msg:match("^threshold") then
-        local arg = msg:match("^threshold%s*(.*)$") or ""
-        AJD.SetThreshold(arg)
+    if isAlias("threshold", cmd) then
+        AJD.SetThreshold(rest or "")
         return
     end
 
-    if msg:match("^button") then
-        local arg = (msg:match("^button%s*(.*)$") or ""):lower()
+    if isAlias("button", cmd) then
+        local arg = (rest or ""):lower()
         (AJD.UI and AJD.UI.ButtonCommand and AJD.UI.ButtonCommand(arg) or AJD.HandleButtonCommand(arg))
         return
     end
 
-    if msg:match("^minimap") then
-        local arg = (msg:match("^minimap%s*(.*)$") or ""):lower()
-        (AJD.Minimap and AJD.Minimap.Command and AJD.Minimap.Command(arg) or AJD.HandleMinimapCommand(arg))
+    if isAlias("minimap", cmd) then
+        local mm = (rest or ""):match("^(%S+)")
+        local normalized = (rest or ""):lower()
+        if mm and mm ~= "" then
+            local token = mm:lower()
+            if isAlias("mm_hide", token) then normalized = "hide"
+            elseif isAlias("mm_show", token) then normalized = "show"
+            elseif isAlias("mm_lock", token) then normalized = "lock"
+            elseif isAlias("mm_unlock", token) then normalized = "unlock"
+            elseif isAlias("mm_reset", token) then normalized = "reset"
+            elseif isAlias("mm_pos", token) then normalized = "pos"
+            end
+        end
+        (AJD.Minimap and AJD.Minimap.Command and AJD.Minimap.Command(normalized) or AJD.HandleMinimapCommand(normalized))
         return
     end
 
-    if msg == "toggle" then
+    if isAlias("toggle", cmd) then
         (AJD.UI and AJD.UI.TogglePopup and AJD.UI.TogglePopup() or AJD.TogglePopup())
         return
     end

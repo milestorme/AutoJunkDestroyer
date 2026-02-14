@@ -42,3 +42,6 @@ Bundled (embedded) libraries:
 - Minimap icon with lock/hide/reset
 - **Full localization**: enUS, deDE, frFR, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW
 
+
+## Localized command aliases
+- Non-English locales can use localized aliases for slash subcommands (for example `/ajd 상태`, `/ajd 状态`, `/ajd статус`) in addition to English tokens.
