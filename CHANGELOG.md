@@ -16,6 +16,7 @@
 
 ### Fixed
 - Cleaned minor code/comment polish issues (`Print` addon-name redundancy and event comment naming).
+- Fixed slash alias normalization to avoid UTF-8 breakage by lowercasing ASCII only in command parsing.
 
 
 ## 1.1.10

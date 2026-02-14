@@ -4,6 +4,11 @@
 local AJD = _G.AutoJunkDestroyerRuntime or {}
 local L = AJD.L or {}
 
+local function asciiLower(s)
+    if type(s) ~= "string" then return s end
+    return (s:gsub("%u", function(c) return string.char(string.byte(c) + 32) end))
+end
+
 local function buildAliasMap(raw)
     local map = {}
     if type(raw) ~= "string" then
@@ -12,7 +17,10 @@ local function buildAliasMap(raw)
     for part in raw:gmatch("[^,]+") do
         local alias = part:match("^%s*(.-)%s*$")
         if alias and alias ~= "" then
-            map[alias:lower()] = true
+            -- Keep exact alias and ASCII-lower variant.
+            -- This avoids UTF-8 corruption risks from string.lower on non-ASCII characters.
+            map[alias] = true
+            map[asciiLower(alias)] = true
         end
     end
     return map
@@ -37,12 +45,12 @@ local ALIAS = {
 local function isAlias(kind, token)
     if not token then return false end
     local set = ALIAS[kind]
-    return set and set[token:lower()]
+    return set and (set[token] or set[asciiLower(token)])
 end
 
 SLASH_AUTOJUNKDESTROYER1 = "/ajd"
 SlashCmdList.AUTOJUNKDESTROYER = function(msg)
-    msg = (msg or ""):lower()
+    msg = (msg or "")
 
     local cmd, rest = msg:match("^(%S+)%s*(.*)$")
     if not cmd then
@@ -71,16 +79,16 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     end
 
     if isAlias("button", cmd) then
-        local arg = (rest or ""):lower()
+        local arg = asciiLower(rest or "")
         (AJD.UI and AJD.UI.ButtonCommand and AJD.UI.ButtonCommand(arg) or AJD.HandleButtonCommand(arg))
         return
     end
 
     if isAlias("minimap", cmd) then
         local mm = (rest or ""):match("^(%S+)")
-        local normalized = (rest or ""):lower()
+        local normalized = asciiLower(rest or "")
         if mm and mm ~= "" then
-            local token = mm:lower()
+            local token = mm
             if isAlias("mm_hide", token) then normalized = "hide"
             elseif isAlias("mm_show", token) then normalized = "show"
             elseif isAlias("mm_lock", token) then normalized = "lock"
