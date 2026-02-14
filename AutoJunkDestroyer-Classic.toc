@@ -28,9 +28,3 @@ Locales/zhCN.lua
 Locales/zhTW.lua
 
 AutoJunkDestroyer.lua
-Migration.lua
-Core.lua
-UI.lua
-Minimap.lua
-Shard.lua
-Commands.lua

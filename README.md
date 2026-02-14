@@ -15,12 +15,6 @@ AutoJunkDestroyer adds a simple button to delete grey (junk) items on demand, pl
   - If there are many, it may ask you to click again to continue.
 - Minimap icon tooltip shows controls.
 
-## Slash commands
-- `/ajd threshold <percent>` — set bag fullness threshold (e.g. `90` or `0.90`).
-- `/ajd minimap hide|show|lock|unlock|reset`
-- `/ajd pause` — toggle pause state
-- `/ajd resume` — explicitly resume
-- `/ajd status` — print current runtime state
 
 ## Localization
 This addon is fully localized for these client locales:
@@ -43,5 +37,3 @@ Bundled (embedded) libraries:
 - **Full localization**: enUS, deDE, frFR, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW
 
 
-## Localized command aliases
-- Non-English locales can use localized aliases for slash subcommands (for example `/ajd 상태`, `/ajd 状态`, `/ajd статус`) in addition to English tokens.

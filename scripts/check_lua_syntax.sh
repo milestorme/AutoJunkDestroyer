@@ -6,7 +6,7 @@ if ! command -v luac >/dev/null 2>&1; then
   exit 1
 fi
 
-files=(AutoJunkDestroyer.lua Migration.lua Core.lua UI.lua Minimap.lua Shard.lua Commands.lua)
+files=(AutoJunkDestroyer.lua)
 while IFS= read -r f; do
   files+=("$f")
 done < <(find Locales -maxdepth 1 -type f -name '*.lua' | sort)

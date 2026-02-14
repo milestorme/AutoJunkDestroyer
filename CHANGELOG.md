@@ -9,6 +9,7 @@
 - Added CI workflow and scripts for Lua syntax checks and locale key parity.
 
 ### Changed
+- Removed slash command support (`/ajd ...`) and standardized control via minimap left/right-click interactions.
 - Localized remaining hardcoded slash-command output strings (popup position, minimap position, and help text).
 - Translated newly added slash/minimap/popup status keys into each locale language (instead of English placeholders).
 - Improved AceDB pre-logout wrapping notes/guards for forward compatibility diagnostics.
