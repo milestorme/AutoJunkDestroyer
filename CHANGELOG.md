@@ -1,6 +1,21 @@
 # Changelog
 
 
+## 1.2.0
+### Added
+- Added explicit `/ajd resume` and `/ajd status` slash commands.
+- Added dedicated `Commands.lua` module to separate slash routing from core logic.
+- Added CI workflow and scripts for Lua syntax checks and locale key parity.
+
+### Changed
+- Localized remaining hardcoded slash-command output strings (popup position, minimap position, and help text).
+- Improved AceDB pre-logout wrapping notes/guards for forward compatibility diagnostics.
+- Updated README slash command docs for pause/resume/status behavior.
+
+### Fixed
+- Cleaned minor code/comment polish issues (`Print` addon-name redundancy and event comment naming).
+
+
 ## 1.1.10
 ### Fixed
 - Consolidated SavedVariables initialization so shard button defaults are always set alongside the bag threshold.

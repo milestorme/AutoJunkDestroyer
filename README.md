@@ -18,7 +18,9 @@ AutoJunkDestroyer adds a simple button to delete grey (junk) items on demand, pl
 ## Slash commands
 - `/ajd threshold <percent>` — set bag fullness threshold (e.g. `90` or `0.90`).
 - `/ajd minimap hide|show|lock|unlock|reset`
-- `/ajd pause` / `/ajd resume`
+- `/ajd pause` — toggle pause state
+- `/ajd resume` — explicitly resume
+- `/ajd status` — print current runtime state
 
 ## Localization
 This addon is fully localized for these client locales:

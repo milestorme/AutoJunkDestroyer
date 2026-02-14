@@ -3,7 +3,7 @@
 -- Author: Milestorme
 -- Description: Destroy junk items when bags are full easily
 -- Safe, BG-aware, works with any number of bags
--- Version: 1.1.10
+-- Version: 1.2.0
 -------------------------------------------------
 -- FUNCTION INDEX
 -------------------------------------------------
@@ -42,6 +42,8 @@
 
 -- Slash Commands
 --   /ajd pause                       -> Toggle pause
+--   /ajd resume                      -> Explicitly resume addon
+--   /ajd status                      -> Show current addon status
 --   /ajd toggle                      -> Toggle popup visibility
 --   /ajd button [reset]              -> Show/reset popup position
 --   /ajd minimap [show|hide|lock|unlock|reset|pos]
@@ -51,12 +53,14 @@
 --   PLAYER_ENTERING_WORLD            -> BG state detection
 --   PLAYER_REGEN_DISABLED            -> Combat start
 --   PLAYER_REGEN_ENABLED             -> Combat end
---   BAG_UPDATE                       -> Bag change handling
+--   BAG_UPDATE_DELAYED               -> Bag change handling
 --   PLAYER_LOGOUT                    -> Persist saved data
 -------------------------------------------------
 
 local ADDON_NAME = ...
 local frame = CreateFrame("Frame")
+local AJD = _G.AutoJunkDestroyerRuntime or {}
+_G.AutoJunkDestroyerRuntime = AJD
 
 -- Localization (AceLocale-3.0)
 local _AceLocale = LibStub and LibStub("AceLocale-3.0", true)
@@ -83,13 +87,20 @@ local BG_EXIT_DELAY = 0.5
 -- If we leave a BG while in combat, we defer enabling until combat ends.
 local pendingEnableAfterCombat = false
 local warnedWaitingForCombat = false
+local DEBUG = false
 
 -------------------------------------------------
 -- Utility
 -------------------------------------------------
 local function Print(msg)
     -- notes: Unified chat output helper for consistent addon prefix formatting.
-    DEFAULT_CHAT_FRAME:AddMessage(L["CFF00FF00_DC869E"] .. (L["ADDON_NAME"] or L["ADDON_NAME"]) .. L["R_7FC9D5"] .. msg)
+    DEFAULT_CHAT_FRAME:AddMessage(L["CFF00FF00_DC869E"] .. L["ADDON_NAME"] .. L["R_7FC9D5"] .. msg)
+end
+
+local function DebugPrint(msg)
+    if DEBUG then
+        Print("[debug] " .. tostring(msg))
+    end
 end
 
 local function IsInBattleground()
@@ -615,6 +626,8 @@ local function InitAceDB()
     AJD_SanitizeAceDBSV(AutoJunkDestroyerIconDB)
 
     -- Install a pre-logout guard by wrapping AceDB.frame OnEvent so we sanitize BEFORE AceDB cleans up.
+    -- Compatibility note: this depends on stable AceDB internals (frame/GetScript/SetScript); if those
+    -- internals change, we skip wrapping and continue safely without crashing.
     if not AceDB.__AJD_PreLogoutWrapped and AceDB.frame and AceDB.frame.GetScript and AceDB.frame.SetScript then
         local frame = AceDB.frame
         local orig = frame:GetScript("OnEvent")
@@ -631,6 +644,8 @@ local function InitAceDB()
             if orig then return orig(self, event, ...) end
         end)
         AceDB.__AJD_PreLogoutWrapped = true
+    else
+        DebugPrint("AceDB pre-logout wrapper skipped (unexpected AceDB frame internals)")
     end
 
 
@@ -695,136 +710,124 @@ local function InitAceDB()
 end
 
 -------------------------------------------------
--- Slash Commands
+-- Slash Command Action Exports (implemented in Commands.lua)
 -------------------------------------------------
-SLASH_AUTOJUNKDESTROYER1 = "/ajd"
-SlashCmdList.AUTOJUNKDESTROYER = function(msg)
-    -- notes: Slash command router for /ajd.
-    -- notes: Supports: pause, toggle, threshold, button [reset], minimap [hide/show/lock/unlock/reset/pos]
-    msg = (msg or ""):lower()
-
-    if msg == "pause" then
-        userPaused = not userPaused
-        paused = userPaused or inBattleground
-        Print(userPaused and L["MSG_PAUSED"] or L["MSG_RESUMED"])
-        UpdateButtonVisibility(true)
+AJD.Print = Print
+AJD.L = L
+AJD.IsDisabledNow = function()
+    return paused or inBattleground or InCombat()
+end
+AJD.TogglePause = function()
+    userPaused = not userPaused
+    paused = userPaused or inBattleground
+    Print(userPaused and L["MSG_PAUSED"] or L["MSG_RESUMED"])
+    UpdateButtonVisibility(true)
+end
+AJD.Resume = function()
+    userPaused = false
+    paused = inBattleground
+    Print(L["MSG_RESUMED"])
+    UpdateButtonVisibility(true)
+end
+AJD.PrintStatus = function()
+    Print(string.format(L["MSG_STATUS"], tostring(userPaused), tostring(paused), tostring(inBattleground), tostring(InCombat()), tostring(button:IsShown())))
+end
+AJD.SetThreshold = function(arg)
+    EnsureSV()
+    if arg == "" then
+        Print(string.format(L["MSG_THRESHOLD_CURRENT"], math.floor(GetBagUsageThreshold() * 100 + 0.5)))
         return
     end
 
-    if msg:match("^threshold") then
-        EnsureSV()
-        local arg = msg:match("^threshold%s*(.*)$") or ""
-        if arg == "" then
-            Print(string.format(L["MSG_THRESHOLD_CURRENT"], math.floor(GetBagUsageThreshold() * 100 + 0.5)))
-            return
-        end
-
-        local v = tonumber(arg)
-        if not v then
-            Print(L["MSG_THRESHOLD_USAGE"])
-            return
-        end
-
-        -- Allow "90" or "0.90"
-        if v > 1.0 then v = v / 100 end
-        if v < 0.50 then v = 0.50 end
-        if v > 0.99 then v = 0.99 end
-
-        AutoJunkDestroyerDB.settings.bagUsageThreshold = v
-        Print(string.format(L["MSG_THRESHOLD_SET"], math.floor(v * 100 + 0.5)))
-        ScheduleBagRefresh(0)
+    local v = tonumber(arg)
+    if not v then
+        Print(L["MSG_THRESHOLD_USAGE"])
         return
     end
 
-    if msg:match("^button") then
-        -- notes: /ajd button -> prints saved popup position; /ajd button reset -> clears saved position.
-        local arg = msg:match("^button%s*(.*)$") or ""
-        arg = arg:lower()
+    if v > 1.0 then v = v / 100 end
+    if v < 0.50 then v = 0.50 end
+    if v > 0.99 then v = 0.99 end
 
-        if arg == "reset" then
-            ResetPopupButtonPosition()
-            Print(L["MSG_POPUP_RESET"])
+    AutoJunkDestroyerDB.settings.bagUsageThreshold = v
+    Print(string.format(L["MSG_THRESHOLD_SET"], math.floor(v * 100 + 0.5)))
+    ScheduleBagRefresh(0)
+end
+AJD.HandleButtonCommand = function(arg)
+    if arg == "reset" then
+        ResetPopupButtonPosition()
+        Print(L["MSG_POPUP_RESET"])
+        return
+    end
+
+    EnsureSV()
+    local p = AutoJunkDestroyerDB.popupButtonPos
+    if p then
+        if p.point then
+            Print(string.format(L["MSG_POPUP_POS_SAVED_REL"], tostring(p.x), tostring(p.y), tostring(p.point)))
         else
-            EnsureSV()
-            local p = AutoJunkDestroyerDB.popupButtonPos
-            if p then
-            if p.point then
-                Print("PopupPos (saved): xOfs=" .. tostring(p.x) .. " yOfs=" .. tostring(p.y) .. " (" .. tostring(p.point) .. ")")
-            else
-                Print("PopupPos (saved): x=" .. tostring(p.x) .. " y=" .. tostring(p.y))
-            end
-        else
-                local l, t = button:GetLeft(), button:GetTop()
-                Print("PopupPos not saved yet. Current left=" .. tostring(l) .. " top=" .. tostring(t))
-            end
+            Print(string.format(L["MSG_POPUP_POS_SAVED_ABS"], tostring(p.x), tostring(p.y)))
         end
+    else
+        local l, t = button:GetLeft(), button:GetTop()
+        Print(string.format(L["MSG_POPUP_POS_NOT_SAVED"], tostring(l), tostring(t)))
+    end
+end
+AJD.HandleMinimapCommand = function(arg)
+    if not db then
+        Print(L["MSG_MINIMAP_DB_NOT_READY"])
         return
     end
 
-    if msg:match("^minimap") then
-        -- notes: /ajd minimap controls LibDBIcon state (hide/show/lock/unlock/reset/pos).
-        if not db then
-            Print(L["MSG_MINIMAP_DB_NOT_READY"])
-            return
-        end
-
-        local arg = msg:match("^minimap%s*(.*)$") or ""
-        arg = arg:lower()
-
-        if arg == "hide" then
-            db.profile.minimap.hide = true
-            icon:Hide("AutoJunkDestroyer")
-            Print(L["MSG_MINIMAP_ICON_HIDDEN"])
-        elseif arg == "show" then
-            db.profile.minimap.hide = false
-            icon:Show("AutoJunkDestroyer")
-            Print(L["MSG_MINIMAP_ICON_SHOWN"])
-        elseif arg == "lock" then
-            db.profile.minimap.lock = true
-            icon:Lock("AutoJunkDestroyer")
-            Print(L["MSG_MINIMAP_LOCKED"])
-        elseif arg == "unlock" then
-            db.profile.minimap.lock = false
-            icon:Unlock("AutoJunkDestroyer")
-            Print(L["MSG_MINIMAP_UNLOCKED"])
-        elseif arg == "reset" then
-            db.profile.minimap.minimapPos = 220
-            icon:Refresh("AutoJunkDestroyer", db.profile.minimap)
-            Print(L["MSG_MINIMAP_RESET"])
-        elseif arg == "pos" or arg == "" then
-            Print("MinimapPos (saved): " .. tostring(db.profile.minimap.minimapPos) ..
-                  " | hide=" .. tostring(db.profile.minimap.hide) ..
-                  " | lock=" .. tostring(db.profile.minimap.lock))
-        else
-            Print("/ajd minimap reset")
-        end
+    if arg == "hide" then
+        db.profile.minimap.hide = true
+        icon:Hide("AutoJunkDestroyer")
+        Print(L["MSG_MINIMAP_ICON_HIDDEN"])
+    elseif arg == "show" then
+        db.profile.minimap.hide = false
+        icon:Show("AutoJunkDestroyer")
+        Print(L["MSG_MINIMAP_ICON_SHOWN"])
+    elseif arg == "lock" then
+        db.profile.minimap.lock = true
+        icon:Lock("AutoJunkDestroyer")
+        Print(L["MSG_MINIMAP_LOCKED"])
+    elseif arg == "unlock" then
+        db.profile.minimap.lock = false
+        icon:Unlock("AutoJunkDestroyer")
+        Print(L["MSG_MINIMAP_UNLOCKED"])
+    elseif arg == "reset" then
+        db.profile.minimap.minimapPos = 220
+        icon:Refresh("AutoJunkDestroyer", db.profile.minimap)
+        Print(L["MSG_MINIMAP_RESET"])
+    elseif arg == "pos" or arg == "" then
+        Print(string.format(L["MSG_MINIMAP_POS_SAVED"], tostring(db.profile.minimap.minimapPos), tostring(db.profile.minimap.hide), tostring(db.profile.minimap.lock)))
+    else
+        Print(L["MSG_MINIMAP_USAGE"])
+    end
+end
+AJD.TogglePopup = function()
+    if paused or inBattleground or InCombat() then
+        Print(L["MSG_DISABLED_RIGHT_NOW"])
+        button:Hide()
         return
     end
 
-    if msg == "toggle" then
-        -- notes: /ajd toggle shows/hides the popup delete button (only when addon is active).
-        if paused or inBattleground or InCombat() then
-            Print(L["MSG_DISABLED_RIGHT_NOW"])
-            button:Hide()
-            return
-        end
-
-        if button:IsShown() then
-            button:Hide()
-            Print(L["MSG_BUTTON_HIDDEN_MINIMAP"])
-        else
-            button:Show()
-            UpdateButtonText()
-            Print(L["MSG_BUTTON_SHOWN_MINIMAP"])
-        end
-        return
+    if button:IsShown() then
+        button:Hide()
+        Print(L["MSG_BUTTON_HIDDEN_MINIMAP"])
+    else
+        button:Show()
+        UpdateButtonText()
+        Print(L["MSG_BUTTON_SHOWN_MINIMAP"])
     end
-
-    -- notes: Default help output.
-    Print("/ajd pause")
-    Print("/ajd toggle")
-    Print("/ajd threshold 90")
-    Print("/ajd minimap reset")
+end
+AJD.PrintHelp = function()
+    Print(L["MSG_HELP_PAUSE"])
+    Print(L["MSG_HELP_RESUME"])
+    Print(L["MSG_HELP_STATUS"])
+    Print(L["MSG_HELP_TOGGLE"])
+    Print(L["MSG_HELP_THRESHOLD"])
+    Print(L["MSG_HELP_MINIMAP_RESET"])
 end
 
 -------------------------------------------------

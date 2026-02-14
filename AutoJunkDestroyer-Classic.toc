@@ -3,7 +3,7 @@
 ## Title: AutoJunkDestroyer
 ## Author: Milestorme
 ## Notes: Destroy junk items quickly (full localization + updated libs).
-## Version: 1.1.10
+## Version: 1.2.0
 ## Category: Bags & Inventory
 ## IconTexture: Interface/AddOns/AutoJunkDestroyer/AutoJunkDestroyer.tga
 ## X-Localizations: enUS, deDE, frFR, esES, esMX, itIT, ptBR, ruRU, koKR, zhCN, zhTW
@@ -28,3 +28,9 @@ Locales/zhCN.lua
 Locales/zhTW.lua
 
 AutoJunkDestroyer.lua
+Migration.lua
+Core.lua
+UI.lua
+Minimap.lua
+Shard.lua
+Commands.lua
