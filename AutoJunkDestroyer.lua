@@ -700,13 +700,21 @@ end
 SLASH_AUTOJUNKDESTROYER1 = "/ajd"
 SlashCmdList.AUTOJUNKDESTROYER = function(msg)
     -- notes: Slash command router for /ajd.
-    -- notes: Supports: pause, toggle, threshold, button [reset], minimap [hide/show/lock/unlock/reset/pos]
+    -- notes: Supports: pause, resume, toggle, threshold, button [reset], minimap [hide/show/lock/unlock/reset/pos]
     msg = (msg or ""):lower()
 
     if msg == "pause" then
-        userPaused = not userPaused
+        userPaused = true
         paused = userPaused or inBattleground
-        Print(userPaused and L["MSG_PAUSED"] or L["MSG_RESUMED"])
+        Print(L["MSG_PAUSED"])
+        UpdateButtonVisibility(true)
+        return
+    end
+
+    if msg == "resume" then
+        userPaused = false
+        paused = userPaused or inBattleground
+        Print(L["MSG_RESUMED"])
         UpdateButtonVisibility(true)
         return
     end
@@ -822,6 +830,7 @@ SlashCmdList.AUTOJUNKDESTROYER = function(msg)
 
     -- notes: Default help output.
     Print("/ajd pause")
+    Print("/ajd resume")
     Print("/ajd toggle")
     Print("/ajd threshold 90")
     Print("/ajd minimap reset")
