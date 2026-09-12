@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.1
+- updated toc so versions dont show out of date
+
 ## 1.2.0
 
 ### Fixed
