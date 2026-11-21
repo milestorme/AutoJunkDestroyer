@@ -58,6 +58,32 @@
 local ADDON_NAME = ...
 local frame = CreateFrame("Frame")
 
+-- Compatibility wrappers: Forever uses a modern client, while Classic branches
+-- may expose either C_Container or the older bag API.
+local function BagSlots(bag)
+    if C_Container and C_Container.GetContainerNumSlots then return C_Container.GetContainerNumSlots(bag) or 0 end
+    return (GetContainerNumSlots and GetContainerNumSlots(bag)) or 0
+end
+local function BagFreeSlots(bag)
+    if C_Container and C_Container.GetContainerNumFreeSlots then return C_Container.GetContainerNumFreeSlots(bag) or 0 end
+    return (GetContainerNumFreeSlots and GetContainerNumFreeSlots(bag)) or 0
+end
+local function BagItemInfo(bag, slot)
+    if C_Container and C_Container.GetContainerItemInfo then return C_Container.GetContainerItemInfo(bag, slot) end
+    if not GetContainerItemInfo then return nil end
+    local texture, count, locked, quality, readable, lootable, link, filtered, noValue, itemID = GetContainerItemInfo(bag, slot)
+    if not texture then return nil end
+    return { iconFileID=texture, stackCount=count, isLocked=locked, quality=quality,
+             hyperlink=link, hasNoValue=noValue, itemID=itemID }
+end
+local function PickupBagItem(bag, slot)
+    if C_Container and C_Container.PickupContainerItem then return C_Container.PickupContainerItem(bag, slot) end
+    if PickupContainerItem then return PickupContainerItem(bag, slot) end
+end
+local function BagCount()
+    return NUM_BAG_SLOTS or 4
+end
+
 -- Localization (AceLocale-3.0)
 local _AceLocale = LibStub and LibStub("AceLocale-3.0", true)
 local L
@@ -110,12 +136,12 @@ local function GetGreyItems()
     -- notes: Scans all bags (0..NUM_BAG_SLOTS) and returns a list of grey (quality=0) items that have value.
     -- notes: Each entry is { bag = <bagID>, slot = <slotID> }.
     local queue = {}
-    for bag = 0, NUM_BAG_SLOTS do
-        local slots = C_Container.GetContainerNumSlots(bag)
+    for bag = 0, BagCount() do
+        local slots = BagSlots(bag)
         if slots and slots > 0 then
             for slot = 1, slots do
-                local info = C_Container.GetContainerItemInfo(bag, slot)
-                if info and info.quality == 0 and not info.hasNoValue then
+                local info = BagItemInfo(bag, slot)
+                if info and info.quality == 0 and not info.hasNoValue and not info.isLocked then
                     table.insert(queue, { bag = bag, slot = slot })
                 end
             end
@@ -170,12 +196,12 @@ local function GetBagUsage()
     local totalSlots = 0
     local freeSlots = 0
 
-    for bag = 0, NUM_BAG_SLOTS do
-        local slots = C_Container.GetContainerNumSlots(bag)
+    for bag = 0, BagCount() do
+        local slots = BagSlots(bag)
         if slots and slots > 0 then
             totalSlots = totalSlots + slots
 
-            local free = C_Container.GetContainerNumFreeSlots(bag)
+            local free = BagFreeSlots(bag)
             if free and free > 0 then
                 freeSlots = freeSlots + free
             end
@@ -450,11 +476,16 @@ button:SetScript("OnClick", function()
         return
     end
 
+    if CursorHasItem() then
+        Print(L["CURSOR_HOLDING_ITEM_CLEAR_FIRST"])
+        return
+    end
+
     -- Delete ONE item (first grey found)
     local item = greys[1]
     local bag, slot = item.bag, item.slot
 
-    C_Container.PickupContainerItem(bag, slot)
+    PickupBagItem(bag, slot)
     if CursorHasItem() then
         DeleteCursorItem()
         ClearCursor()
@@ -859,11 +890,11 @@ local SOUL_SHARD_ITEM_ID = 6265
 
 CountSoulShards = function()
     local total = 0
-    for bag = 0, NUM_BAG_SLOTS do
-        local slots = C_Container.GetContainerNumSlots(bag)
+    for bag = 0, BagCount() do
+        local slots = BagSlots(bag)
         if slots and slots > 0 then
             for slot = 1, slots do
-                local info = C_Container.GetContainerItemInfo(bag, slot)
+                local info = BagItemInfo(bag, slot)
                 if info and info.itemID == SOUL_SHARD_ITEM_ID then
                     total = total + (info.stackCount or 1)
                 end
@@ -874,11 +905,11 @@ CountSoulShards = function()
 end
 
 local function FindSoulShardSlot()
-    for bag = 0, NUM_BAG_SLOTS do
-        local slots = C_Container.GetContainerNumSlots(bag)
+    for bag = 0, BagCount() do
+        local slots = BagSlots(bag)
         if slots and slots > 0 then
             for slot = 1, slots do
-                local info = C_Container.GetContainerItemInfo(bag, slot)
+                local info = BagItemInfo(bag, slot)
                 if info and info.itemID == SOUL_SHARD_ITEM_ID then
                     return bag, slot, info
                 end
@@ -910,7 +941,7 @@ local function DeleteSoulShardOnce()
 
     local link = (info and info.hyperlink) or L["SOUL_SHARD"]
 
-    C_Container.PickupContainerItem(bag, slot)
+    PickupBagItem(bag, slot)
     if not CursorHasItem() then
         Print(L["FAILED_PICKUP_SOUL_SHARD"])
         return false

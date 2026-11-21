@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+- Added support for WoW Forever 1.60.1, including dedicated interface metadata.
+- Added compatibility handling for inventory and container API differences.
+
+### Improved
+- Added safeguards to skip locked junk items and avoid deleting items while an item is held on the cursor.
+- Preserved existing grey-item deletion, Soul Shard controls, minimap settings, and localizations.
+
+### Compatibility
+- Updated addon version metadata across Forever, Classic Era, and TBC TOC files.
+- WoW Forever functionality confirmed through in-game testing.
+
+# Changelog
+
 ## 1.2.1
 - updated toc so versions dont show out of date
 
